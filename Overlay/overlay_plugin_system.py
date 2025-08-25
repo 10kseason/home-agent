@@ -16,6 +16,12 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Callable
 from pathlib import Path
 
+# 외부 tools 폴더에서 YAML 기반 플러그인을 가져온다
+try:
+    from tools.overlay_plugin import YamlToolsPlugin
+except Exception:
+    YamlToolsPlugin = None
+
 # 로깅 설정
 try:
     from loguru import logger
@@ -426,12 +432,15 @@ class PluginManager:
     
     def _register_default_plugins(self):
         """기본 플러그인들 등록"""
-        default_plugins = [
+        default_plugins = []
+        if YamlToolsPlugin:
+            default_plugins.append(YamlToolsPlugin)
+        default_plugins.extend([
             SecurityPlugin,
             SchedulePlugin,
             WebPlugin,
             KnowledgePlugin,
-        ]
+        ])
         
         for plugin_cls in default_plugins:
             try:
