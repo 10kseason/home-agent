@@ -135,3 +135,12 @@ llm_tools_small:
 llm_tools_chat:
   endpoint: "http://127.0.0.1:11434/v1"
   model: "openai/gpt-oss-20b"
+
+
+
+"plugins": {
+"SecurityPlugin": {"enabled": True},
+"SchedulePlugin": {"enabled": True, "timezone": "Asia/Seoul"},
+"WebPlugin": {"enabled": True},
+"KnowledgePlugin": {"enabled": True}
+}

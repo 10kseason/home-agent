@@ -1,0 +1,17 @@
+{
+  "server_url": "http://localhost:1234/v1",
+  "api_key": "lm-studio",
+  "ocr_model": "qwen/qwen2.5-vl-7b",
+  "translate_model": "qwen/qwen3-8b",
+  "fast_vlm_mode": false,
+  "fast_vlm_model": "lfm2-vl-1.6b",
+  "target_language": "Korean",
+  "hotkey": "ctrl+alt+o",
+  "copy_to_clipboard": true,
+  "notify_on_finish": true,
+  "notify_content": "translation",
+  "show_intermediate_ocr": false,
+  "show_result_window": false,
+  "show_result_popup": true,
+  "popup_content": "translation"
+}

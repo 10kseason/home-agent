@@ -1,163 +1,88 @@
-# ── Prompt-Injection Guard
-- name: guard.prompt_injection_check
-  desc: "외부 텍스트/HTML에서 프롬프트 인젝션 위험 평가 및 요약"
-  input_schema:
-    text: {type: string, required: true}
-    source: {type: string, enum: ["web","file","user","other"], default: "web"}
-    url: {type: string, required: false}
-    allow_tool_use: {type: boolean, default: false}
-  output_schema:
-    risk: {type: string, enum: ["low","medium","high"]}
-    score: {type: number}
-    triggers: {type: array, items: {type: string}}
-    safe_summary: {type: string}
 
-# ── Scheduler / Reminder
-- name: sched.create
-  desc: "작업 예약 생성(일회/반복). ISO8601 또는 간단 RRULE"
-  input_schema:
-    title: {type: string, required: true}
-    run_at: {type: string, required: false}
-    interval_sec: {type: integer, required: false}
-    rrule: {type: string, required: false}
-    payload: {type: object, required: false}
-  output_schema:
-    id: {type: string}
-    next_run: {type: string}
-
-- name: sched.cancel
-  desc: "예약 취소"
-  input_schema:
-    id: {type: string, required: true}
-  output_schema:
-    ok: {type: boolean}
-
-- name: sched.list
-  desc: "예약 조회"
-  input_schema: {}
-  output_schema:
-    items: {type: array, items: {type: object}}
-
-# ── Secrets Scanner
-- name: security.secrets_scan
-  desc: "텍스트/파일에서 시크리트 토큰 패턴 탐지 및 마스킹"
-  input_schema:
-    text: {type: string, required: false}
-    file_path: {type: string, required: false}
-    mask: {type: boolean, default: true}
-  output_schema:
-    findings: {type: array, items: {type: object}}
-    masked_text: {type: string}
-
-# ── Rate Limiter (정책 조회/설정)
-- name: rate.limit
-  desc: "툴별/키별 레이트림인 정책 조회/갱신"
-  input_schema:
-    key: {type: string, required: true}
-    limit: {type: integer, required: false}
-    window_sec: {type: integer, required: false}
-    get_only: {type: boolean, default: false}
-  output_schema:
-    key: {type: string}
-    limit: {type: integer}
-    window_sec: {type: integer}
-
-# ── Approval Gate (사람 확인)
-- name: approval.gate
-  desc: "민감 작업 실행 전 사용자 승인 요청(타임아웃 포함)"
-  input_schema:
-    title: {type: string, required: true}
-    detail: {type: string, required: true}
-    timeout_sec: {type: integer, default: 45}
-  output_schema:
-    approved: {type: boolean}
-    reason: {type: string}
-
-
-
-# ─────────────── Core utility tools (Luna set) ───────────────
 - name: agent.list_tools
-  desc: "현재 실행 가능한 툴 이름/스키마를 조회"
-  input_schema: {"type":"object"}
-
-- name: web.fetch_lite
-  desc: "화이트리스트 도메인만 GET으로 읽어와 텍스트를 반환 (간단 정제)"
+  desc: "Return implemented tool names and JSON Schemas from tools/config/tools.yaml"
   input_schema:
     type: object
+    properties: {}
+- name: web.fetch_lite
+  desc: "Fetch a web page (text-only, sanitized) with optional allow-list"
+  input_schema:
+    type: object
+    required: [url]
     properties:
       url: {type: string}
-      allowed_domains: {type: array, items: {type: string}, default: ["wikipedia.org","docs.python.org"]}
-      max_bytes: {type: integer, default: 400000}
-    required: [url]
-
-- name: kb.ingest
-  desc: "텍스트/파일/URL을 간단 청킹하여 로컬 KB(JSONL)에 저장"
+      allowed_domains:
+        type: array
+        items: {type: string}
+      max_bytes: {type: integer, minimum: 1024, default: 400000}
+- name: guard.prompt_injection_check
+  desc: "Score text for prompt-injection patterns"
+  input_schema:
+    type: object
+    required: [text]
+    properties:
+      text: {type: string}
+      source: {type: string}
+      url: {type: string}
+      allow_tool_use: {type: boolean, default: false}
+- name: security.secrets_scan
+  desc: "Regex-based secret scanner for text or file"
   input_schema:
     type: object
     properties:
-      source: {type: string}    # 텍스트 자체 또는 파일/URL
-      is_path: {type: boolean, default: false}
-      is_url: {type: boolean, default: false}
-      tags: {type: array, items: {type: string}}
-    required: [source]
-
-- name: kb.search
-  desc: "로컬 KB에서 질의어와 단순 TF-유사도 기반으로 topK 문단 반환"
+      text: {type: string}
+      file_path: {type: string}
+      mask: {type: boolean, default: true}
+- name: rate.limit
+  desc: "Get/Set per-key rate limit policy"
   input_schema:
     type: object
+    required: [key]
     properties:
-      query: {type: string}
-      top_k: {type: integer, default: 5}
-    required: [query]
-
-- name: file.watch
-  desc: "폴더를 폴링 방식으로 감시하고 이벤트를 agent_output/watch_events.jsonl에 적재"
+      key: {type: string}
+      limit: {type: integer}
+      window_sec: {type: integer}
+      get_only: {type: boolean, default: false}
+- name: approval.gate
+  desc: "Ask human for approval with a prompt (console fallback)"
   input_schema:
     type: object
-    properties:
-      path: {type: string}
-      pattern: {type: string, default: "*.*"}
-      on_event: {type: string, enum: ["create","modify","delete"], default: "create"}
-      interval_sec: {type: integer, default: 2}
-    required: [path]
-
-- name: mail.imap_list
-  desc: "IMAP으로 최근 메일 헤더 요약(읽기 전용)"
-  input_schema:
-    type: object
-    properties:
-      host: {type: string}
-      username: {type: string}
-      password: {type: string}
-      mailbox: {type: string, default: "INBOX"}
-      search: {type: string, default: "UNSEEN"}
-      max: {type: integer, default: 20}
-    required: [host, username, password]
-
-- name: mail.smtp_send
-  desc: "SMTP로 간단한 텍스트 메일 전송"
-  input_schema:
-    type: object
-    properties:
-      host: {type: string}
-      port: {type: integer, default: 587}
-      username: {type: string}
-      password: {type: string}
-      to: {type: array, items: {type: string}}
-      subject: {type: string}
-      body: {type: string}
-      starttls: {type: boolean, default: true}
-    required: [host, username, password, to, subject, body]
-
-- name: sched.persist
-  desc: "Windows schtasks로 시스템 예약 작업 생성/삭제 (재부팅 이후에도 유지)"
-  input_schema:
-    type: object
+    required: [title, detail]
     properties:
       title: {type: string}
-      time: {type: string, description: "HH:MM (로컬) 또는 'NOW' "}
-      every: {type: string, description: "DAILY|HOURLY|MINUTE:n"}
-      cmd: {type: string, description: "실행할 명령/스크립트"}
-      delete: {type: boolean, default: false}
+      detail: {type: string}
+      timeout_sec: {type: integer, default: 45}
+- name: sched.create
+  desc: "Create in-memory reminder/scheduler task"
+  input_schema:
+    type: object
     required: [title]
-
+    properties:
+      title: {type: string}
+      run_at: {type: string, description: "ISO8601 (local tz)"}
+      interval_sec: {type: integer}
+      rrule: {type: string, description: "e.g., BYHOUR=9;BYMINUTE=0"}
+      payload: {type: object}
+- name: sched.cancel
+  desc: "Cancel a scheduled task by id"
+  input_schema:
+    type: object
+    required: [id]
+    properties:
+      id: {type: string}
+- name: sched.list
+  desc: "List scheduled tasks"
+  input_schema:
+    type: object
+    properties: {}
+- name: sched.persist
+  desc: "Windows Task Scheduler wrapper (schtasks)"
+  input_schema:
+    type: object
+    required: [title]
+    properties:
+      title: {type: string}
+      delete: {type: boolean, default: false}
+      time: {type: string, default: "12:00"}
+      every: {type: string, description: "DAILY|HOURLY|MINUTE:n"}
+      cmd: {type: string, default: "cmd /c echo hello-from-sched.persist"}

@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 import re, time, json, threading, heapq, uuid
 from dataclasses import dataclass, field
@@ -14,7 +15,7 @@ INJECTION_PATTERNS = [
     r"(?i)\bignore (all )?(previous|prior) (instructions|messages)\b",
     r"(?i)\bdisregard\b.*\b(system|safety|guardrails)\b",
     r"(?i)\bexfiltrate\b|\bdata leak\b|\bexpose\b.*\b(api|token|cookie|key)\b",
-    r"(?i)\bread(?!ing)\b.*\b(localhost|127\.0\.0\.1|file://|C:\\|/home/)\b",
+    r"(?i)\bread(?!ing)\b.*\b(localhost|127\.0\.0\.1|file://|C:\\\\|/home/)\b",
     r"(?i)\bcopy\b.*\bclipboard\b|\bdump\b.*\bsecrets?\b",
     r"(?i)\blogin\b.*\bcredential\b|\bsession\b.*\bcookie\b",
     r"(?i)\bdo not ask\b.*\buser\b|\bwithout confirmation\b",
@@ -70,8 +71,10 @@ def secrets_scan(text: Optional[str]=None, file_path: Optional[str]=None, mask: 
                              "span": [m.start(), m.end()], "path": path or ""})
     masked_text = content
     if mask and findings:
-        matches = sorted([ (m.start(), m.end(), m.group(0)) for p in SECRET_REGEXES.values()
-                           for m in re.finditer(p, content) ], key=lambda x: x[0], reverse=True)
+        matches = []
+        for p in SECRET_REGEXES.values():
+            matches.extend([ (m.start(), m.end(), m.group(0)) for m in re.finditer(p, content) ])
+        matches.sort(key=lambda x: x[0], reverse=True)
         for s, e, v in matches:
             masked_text = masked_text[:s] + _mask(v) + masked_text[e:]
     return {"findings": findings, "masked_text": masked_text}
@@ -110,12 +113,14 @@ class ApprovalGate:
     """승인 UI 콜백을 주입 가능. 없으면 콘솔 입력 사용."""
     def __init__(self, prompt_fn=None):
         self.prompt_fn = prompt_fn or self._console_prompt
-    def _console_prompt(self, title: str, detail: str, timeout_sec: int) -> Tuple[bool, str]:
+    def _console_prompt(self, title: str, detail: str, timeout_sec: int):
         print(f"[APPROVAL] {title}\n{detail}\n(y/N, {timeout_sec}s timeout)")
         approved = [None]
         def waiter():
-            try: approved[0] = input().strip().lower() in ("y","yes")
-            except Exception: approved[0] = False
+            try:
+                approved[0] = input().strip().lower() in ("y","yes")
+            except Exception:
+                approved[0] = False
         t = threading.Thread(target=waiter, daemon=True); t.start(); t.join(timeout=timeout_sec)
         if approved[0] is None: return False, "timeout"
         return bool(approved[0]), "user_input"
@@ -157,7 +162,8 @@ class MiniScheduler:
             cand = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             dt = cand if cand > now else cand + timedelta(days=1)
         else: dt = now + timedelta(seconds=5)
-        tid = str(uuid.uuid4())[:8]
+        import uuid as _uuid
+        tid = str(_uuid.uuid4())[:8]
         t = _Task(next_ts=dt.timestamp(), id=tid, title=title,
                   interval_sec=interval_sec, rrule=rrule, payload=payload or {})
         with self._cv:
