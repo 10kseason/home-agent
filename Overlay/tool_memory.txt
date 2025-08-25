@@ -23,3 +23,6 @@ When to call tools:
 
 4) Leave a note/event for the Agent (no UI output)
    -> {"name":"agent.event","args":{"type":"overlay.note","payload":{"note":"...","source":"overlay"},"priority":5}}
+
+5) Open a link in the default browser
+   -> {"name":"overlay.open_url","args":{"url":"https://..."}}
