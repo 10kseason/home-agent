@@ -21,6 +21,7 @@ import subprocess
 import platform
 import datetime
 import base64
+import webbrowser
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
@@ -305,15 +306,26 @@ DEFAULT_CFG = {
 DEFAULT_MEMORY = (
     'You are a Tool Orchestrator. Respond ONLY with compact JSON:\\n'
     '{"say":"...", "tool_calls":[{"name":"...","args":{...}}]}\\n\\n'
-    "HARD RULES:\\n"
+    "Hard rules:\\n"
     "- No chain-of-thought; no explanations. JSON ONLY.\\n"
-    "- Keep outputs short. Omit 'say' if not needed.\\n"
-    "- Never translate by yourself; external pipeline handles translation.\\n"
-    "- Do not persist memory; assume rules persist.\\n"
-    "TOOLS:\\n"
-    "1) OCR -> {\"name\":\"ocr.start\",\"args\":{\"hint\":\"subtitle|ui|document\"}} then ocr.stop\\n"
-    "2) STT  -> {\"name\":\"stt.start\",\"args\":{\"mode\":\"realtime\"}} then stt.stop\\n"
-    "3) Agent note -> {\"name\":\"agent.event\",\"args\":{\"type\":\"overlay.note\",\"payload\":{\"note\":\"...\"},\"priority\":5}}\\n"
+    "- Prefer short, actionable outputs. Omit 'say' if not needed.\\n"
+    "- Never translate content yourself. External pipelines handle translation.\\n"
+    "- Do not store memory; assume these rules persist between turns.\\n"
+    "- Tool calls work only when response is valid JSON; other text is ignored.\\n\\n"
+    "When to call tools:\\n"
+    "1) OCR needed (new subtitles, small UI text, non-Korean text visible)\\n"
+    "   -> {\"name\":\"ocr.start\",\"args\":{\"hint\":\"subtitle|ui|document\"}}\\n"
+    "   Stop when done -> {\"name\":\"ocr.stop\",\"args\":{}}\\n\\n"
+    "2) Voice chat / audio capture / live transcription\\n"
+    "   -> {\"name\":\"stt.start\",\"args\":{\"mode\":\"realtime\"}}\\n"
+    "   Stop when done -> {\"name\":\"stt.stop\",\"args\":{}}\\n\\n"
+    "3) Summarize desktop notifications / Discord mentions batch\\n"
+    "   -> {\"name\":\"discord.collect.start\",\"args\":{\"interval_sec\":300}}\\n"
+    "   Stop when done -> {\"name\":\"discord.collect.stop\",\"args\":{}}\\n\\n"
+    "4) Leave a note/event for the Agent (no UI output)\\n"
+    "   -> {\"name\":\"agent.event\",\"args\":{\"type\":\"overlay.note\",\"payload\":{\"note\":\"...\",\"source\":\"overlay\"},\"priority\":5}}\\n\\n"
+    "5) Open a link in the default browser\\n"
+    "   -> {\"name\":\"overlay.open_url\",\"args\":{\"url\":\"https://...\"}}\\n"
 )
 
 
@@ -545,7 +557,7 @@ class Orchestrator:
         te = cfg['tool_endpoints']
         te.setdefault('ocr', {'event_url': 'http://127.0.0.1:8765/event'})
         te.setdefault('stt', {'event_url': 'http://127.0.0.1:8765/event'})
-        
+
         # optional convenience mappings in cfg['tools']
         cfg.setdefault('tools', {})
         tools_map = cfg['tools']
@@ -555,6 +567,9 @@ class Orchestrator:
         tools_map.setdefault('stt.stop',  te['stt']['event_url'])
         te.setdefault('web', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('web.search', te['web']['event_url'])
+        te.setdefault('discord', {'event_url': 'http://127.0.0.1:8765/event'})
+        tools_map.setdefault('discord.collect.start', te['discord']['event_url'])
+        tools_map.setdefault('discord.collect.stop',  te['discord']['event_url'])
 
         # alias for ocr/stt names
         # WEB aliases
@@ -640,6 +655,7 @@ Hard rules:
 - Prefer short, actionable outputs. If you have nothing to say, omit "say".
 - Never translate content yourself. External pipelines handle translation.
 - Do not store memory; assume these rules persist between turns.
+- Tool calls work only when response is valid JSON; other text is ignored.
 
 When to call tools:
 1) OCR needed (new subtitles, small UI text, non-Korean text visible)
@@ -650,24 +666,21 @@ When to call tools:
    -> {"name":"stt.start","args":{"mode":"realtime"}}
    Stop when done -> {"name":"stt.stop","args":{}}
 
-3) Web search requested (user says "검색", "웹검색", "search")
-   -> {"name":"web.search","args":{"q":"search_query","k":5}}
-
-4) Summarize desktop notifications / Discord mentions batch
+3) Summarize desktop notifications / Discord mentions batch
    -> {"name":"discord.collect.start","args":{"interval_sec":300}}
    Stop when done -> {"name":"discord.collect.stop","args":{}}
 
-5) Leave a note/event for the Agent (no UI output)
+4) Leave a note/event for the Agent (no UI output)
    -> {"name":"agent.event","args":{"type":"overlay.note","payload":{"note":"...","source":"overlay"},"priority":5}}
+
+5) Open a link in the default browser
+   -> {"name":"overlay.open_url","args":{"url":"https://example.com"}}
 
 Examples:
 Q: 자막 켜줘
 A: {"say": "", "tool_calls": [{"name": "ocr.start", "args": {"hint": "subtitle"}}]}
 
-Q: 웹검색 해줘 배틀필드
-A: {"say": "", "tool_calls": [{"name": "web.search", "args": {"q": "배틀필드", "k": 5}}]}
-
-Q: STT 끄기  
+Q: STT 끄기
 A: {"say": "", "tool_calls": [{"name": "stt.stop", "args": {}}]}
 
 Q: 안녕하세요
@@ -883,6 +896,19 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
                     continue
                 name = (call or {}).get("name", "")
                 args = (call or {}).get("args", {}) or {}
+
+                if name == "overlay.open_url":
+                    url = args.get("url") or args.get("href")
+                    if url:
+                        try:
+                            webbrowser.open(url)
+                            logger.info(f"[tool] overlay.open_url → {url}")
+                        except Exception as e:
+                            logger.error(f"[tool] overlay.open_url failed: {e}")
+                    else:
+                        logger.warning("[tool] overlay.open_url missing url")
+                    continue
+
                 spec = tcfg.get(name)
                 try:
                     if isinstance(spec, dict):
