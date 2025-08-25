@@ -20,6 +20,7 @@ import re
 import subprocess
 import platform
 import datetime
+import base64
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
@@ -1217,11 +1218,18 @@ class OverlayWindow(QtWidgets.QWidget):
         self.input.setStyleSheet("color:#E7F1FF; background: rgba(255,255,255,28); padding:6px 10px; border-radius:10px;")
         self.input.returnPressed.connect(self.on_send)
 
+        self.btn_image = QtWidgets.QPushButton("🖼️", self.container)
+        self.btn_image.setFixedWidth(40)
+        self.btn_image.clicked.connect(self.on_image)
+
         layout = QtWidgets.QVBoxLayout(self.container)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.addWidget(self.title, 0)
         layout.addWidget(self.output, 1)
-        layout.addWidget(self.input, 0)
+        input_row = QtWidgets.QHBoxLayout()
+        input_row.addWidget(self.input, 1)
+        input_row.addWidget(self.btn_image, 0)
+        layout.addLayout(input_row, 0)
 
         self._drag_pos = None
         self.setWindowOpacity(float(ui["opacity"]))
@@ -1362,18 +1370,26 @@ class OverlayWindow(QtWidgets.QWidget):
 
     def _update_title(self):
         """제목 업데이트 (모드 및 pin 상태 반영)"""
-        mode_text = 'Chat(14B)' if self.mode == 'chat' else 'Tools(4B)'
-        
-        if self.pin_active and self.pinned_model:
-            pin_text = f" 📌{self.pinned_model.upper()}"
-            mode_text += pin_text
-            
-        self.title.setText(f"Luna Overlay v9 – Mode: {mode_text}")
+        if self.mode == 'chat':
+            mode_text = 'Chat(14B)'
+        elif self.mode == 'vision':
+            mode_text = 'Vision(12B)'
+        else:
+            mode_text = 'Tools(4B)'
+
+        pin_text = f" | Pin: {self.pinned_model.upper()}" if self.pin_active and self.pinned_model else ""
+        self.title.setText(f"Luna Overlay v9 – Mode: {mode_text}{pin_text}")
 
     def set_mode(self, mode: str):
         self.mode = mode
         self._update_title()
-        self._append("overlay", f"모드 전환: {'대화모드(14B)' if mode=='chat' else '툴 모드(4B)'}")
+        if mode == 'vision':
+            desc = '비전 모드(12B)'
+        elif mode == 'chat':
+            desc = '대화모드(14B)'
+        else:
+            desc = '툴 모드(4B)'
+        self._append("overlay", f"모드 전환: {desc}")
 
     def _get_effective_llm_config(self, preferred_type: str = "tools") -> Dict[str, Any]:
         """Pin 상태를 고려한 LLM 설정 반환"""
@@ -1424,15 +1440,23 @@ class OverlayWindow(QtWidgets.QWidget):
             m_tools = (cfg.get('llm_tools') or cfg.get('llm') or {}).get('model')
             m_chat = (cfg.get('llm_chat') or cfg.get('llm') or {}).get('model')
             pin_info = ""
-        
+        m_vision = (cfg.get('llm_vision') or cfg.get('llm_chat') or cfg.get('llm') or {}).get('model')
+
         px = cfg.get("proxy", {})
         purl = f"http://{px.get('host','127.0.0.1')}:{int(px.get('port',8350))}/v1/chat/completions"
-        
+
         # 이벤트 통계 추가
         stats = self.event_handler.get_stats()
-        
-        return (f"모드: {'대화(14B)' if self.mode=='chat' else '툴(4B)'}{pin_info} | "
-                f"tools={m_tools} | chat={m_chat} | proxy={purl}\n"
+
+        if self.mode == 'chat':
+            mode_disp = '대화(14B)'
+        elif self.mode == 'vision':
+            mode_disp = '비전(12B)'
+        else:
+            mode_disp = '툴(4B)'
+
+        return (f"모드: {mode_disp}{pin_info} | "
+                f"tools={m_tools} | chat={m_chat} | vision={m_vision} | proxy={purl}\n"
                 f"이벤트: 총 {stats['total_received']}개, 에러 {stats['errors']}개 "
                 f"({stats['error_rate']:.1%})")
 
@@ -1470,11 +1494,19 @@ class OverlayWindow(QtWidgets.QWidget):
                 self.appended.emit('error', f'tool calls failed: {e}')
         threading.Thread(target=_w, daemon=True).start()
 
+    def _remove_think_tags(self):
+        raw = self.output.toPlainText()
+        cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE)
+        cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
+        self.output.setPlainText(cleaned)
+        self._append("overlay", "<Think> 태그 제거됨")
+
     def _help(self):
         self._append("overlay",
                      "명령어:\n"
                      "  /대화모드 | /chat        → 대화모드(14B)\n"
                      "  /대화종료 | /end         → 툴 모드(4B)\n"
+                     "  /vision                → 비전모드(12B)\n"
                      "  /상태 | /status          → 현재 모드/모델/프록시/이벤트 통계 표시\n"
                      "  /리셋 | /reset           → 히스토리 초기화 + tool_memory 재적용\n"
                      "  /memory reload           → tool_memory.txt 다시 읽기\n"
@@ -1498,6 +1530,7 @@ class OverlayWindow(QtWidgets.QWidget):
                      "  /event stt <url>       → STT 이벤트 URL 변경\n"
                      "  /20B                   → 대화모델을 GPT-OSS-20B로 설정\n"
                      "  /14B                   → 대화모델을 GPT-OSS-14B로 설정\n"
+                     "  /clearthink            → 출력의 <Think> 태그 제거\n"
                      )
 
     def _try_slash(self, text: str) -> bool:
@@ -1511,6 +1544,8 @@ class OverlayWindow(QtWidgets.QWidget):
             self.set_mode("chat"); return True
         if cmd in ("/대화종료", "/end"):
             self.set_mode("tools"); return True
+        if cmd == "/vision":
+            self.set_mode("vision"); return True
         if cmd in ("/상태", "/status"):
             self._append("overlay", self._status_line()); return True
         if cmd == "/stats":
@@ -1578,6 +1613,8 @@ class OverlayWindow(QtWidgets.QWidget):
                 open(path, "w", encoding="utf-8").write("\n".join(self.transcript)); self._append("overlay", f"저장됨: {path}")
             except Exception as e: self._append("error", f"저장 실패: {e}")
             return True
+        if cmd == "/clearthink":
+            self._remove_think_tags(); return True
         if cmd == "/ocr" and len(toks) == 2 and toks[1].lower() in ("on","off"):
             name = 'ocr.start' if toks[1].lower()=='on' else 'ocr.stop'
             self._run_tool_calls_async([{"name": name, "args": {}}])
@@ -1664,6 +1701,36 @@ class OverlayWindow(QtWidgets.QWidget):
                 self.appended.emit("error", str(e))
                 logger.exception("overlay worker error")
         threading.Thread(target=worker, daemon=True).start()
+
+    def on_image(self):
+        """이미지 파일을 선택해 비전 모델로 전송"""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if not path:
+            return
+        try:
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            mime = "image/png"
+            if path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
+                mime = "image/jpeg"
+            elif path.lower().endswith(".bmp"):
+                mime = "image/bmp"
+            msg = [{
+                "role": "user",
+                "content": [{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}]
+            }]
+            self.set_mode("vision")
+            self._append("you", f"[이미지] {os.path.basename(path)}")
+
+            def worker(messages=msg):
+                try:
+                    out = self.orch.chat_vision(messages)
+                    self.appended.emit("vision", strip_think_and_fences(out))
+                except Exception as e:
+                    self.appended.emit("error", f"vision failed: {e}")
+            threading.Thread(target=worker, daemon=True).start()
+        except Exception as e:
+            self._append("error", f"이미지 로드 실패: {e}")
 
 # ---------------- Tray ----------------
 
