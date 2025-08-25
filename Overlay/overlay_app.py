@@ -30,6 +30,7 @@ from tools.security.orchestrator_hooks import (
     before_tool,
     before_upload,
 )
+from tools.tool import HANDLERS as TOOL_HANDLERS
 
 # ---------------- logging ----------------
 try:
@@ -557,6 +558,7 @@ class Orchestrator:
         self.history_chat:  List[Dict[str, str]] = [{"role": "system", "content": self._system_prompt_chat()}]
         self.procs: Dict[str, subprocess.Popen] = {}
         self.lock = threading.Lock()
+        self.tool_handlers = TOOL_HANDLERS
         
         # defaults for tool endpoints
         cfg.setdefault('tool_endpoints', {})
@@ -691,6 +693,7 @@ A: {"say": "", "tool_calls": [{"name": "stt.stop", "args": {}}]}
 
 Q: 안녕하세요
 A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
+\nOther tools may be available. Use {"name":"agent.list_tools","args":{}} to discover them.
 '''
         
         # tool_memory.txt 내용 추가
@@ -805,9 +808,9 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
         tc_heur = self._heuristic_route(user_text)
 
         # ④ 허용 툴만 통과
-        allowed = {"ocr.start","ocr.stop","stt.start","stt.stop","web.search"}  # ← agent.event 는 비허용
+        allowed = set(self.cfg.get("tools", {}).keys()) | set(self.tool_handlers.keys()) | {"overlay.open_url"}  # ← agent.event 는 비허용
         def _filter_ok(calls):
-            ok=[]; 
+            ok=[];
             for tc in (calls or []):
                 if isinstance(tc, dict) and (tc.get("name") in allowed):
                     ok.append({"name": tc["name"], "args": tc.get("args") or {}})
@@ -929,8 +932,13 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
                     continue
 
                 spec = tcfg.get(name)
+                handler = self.tool_handlers.get(name)
                 try:
-                    if isinstance(spec, dict):
+                    if handler:
+                        res = handler(args)
+                        logger.info(f"[tool] {name} → {res}")
+                        continue
+                    elif isinstance(spec, dict):
                         kind = (spec.get("kind") or "").lower()
                         if kind == "process":
                             self._proc_launch(name, spec, args)
