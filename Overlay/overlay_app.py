@@ -716,13 +716,20 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
             llm = self.window._get_effective_llm_config("chat")
         else:
             llm = self.cfg.get("llm_chat") or self.cfg.get("llm")
-            
-        msgs = self.history_chat[-12:] + [{"role": "user", "content": user_text}]
+        pin_20b = bool(self.window and getattr(self.window, "pin_active", False) and getattr(self.window, "pinned_model", None) == "20b")
+
+        if pin_20b:
+            msgs = [{"role": "system", "content": "Reasoning: medium"}, {"role": "user", "content": user_text}]
+        else:
+            msgs = self.history_chat[-12:] + [{"role": "user", "content": user_text}]
+
         resp = await self._chat_complete_raw(llm, msgs)
         out = strip_think_and_fences(resp.get("content") or extract_msg_content(resp.get("message") or {}) or "")
-        self.history_chat += [{"role": "user", "content": user_text}, {"role": "assistant", "content": out}]
-        if len(self.history_chat) > 16:
-            self.history_chat = [self.history_chat[0]] + self.history_chat[-15:]
+
+        if not pin_20b:
+            self.history_chat += [{"role": "user", "content": user_text}, {"role": "assistant", "content": out}]
+            if len(self.history_chat) > 16:
+                self.history_chat = [self.history_chat[0]] + self.history_chat[-15:]
         return out
 
     async def call_vision(self, messages: List[Dict[str, Any]]) -> str:
@@ -730,6 +737,11 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
             llm = self.window._get_effective_llm_config("vision")
         else:
             llm = self.cfg.get("llm_vision") or self.cfg.get("llm_chat") or self.cfg.get("llm")
+
+        pin_20b = bool(self.window and getattr(self.window, "pin_active", False) and getattr(self.window, "pinned_model", None) == "20b")
+        if pin_20b:
+            messages = [{"role": "system", "content": "Reasoning: medium"}, *messages]
+
         resp = await self._chat_complete_raw(llm, messages)
         out = strip_think_and_fences(resp.get("content") or extract_msg_content(resp.get("message") or {}) or "")
         return out
@@ -1178,7 +1190,8 @@ class OverlayWindow(QtWidgets.QWidget):
         self.tray = tray
         self.mode = "tools"
         self.transcript = []
-        
+        self.pending_vision_images: List[Dict[str, Any]] = []
+
         # Pin 모델 관리
         self.pinned_model = None  # None, "4b", "14b", "20b"
         self.pin_active = False
@@ -1654,53 +1667,77 @@ class OverlayWindow(QtWidgets.QWidget):
     @QtCore.pyqtSlot()
     def on_send(self):
         text = self.input.text().strip()
-        if not text: return
+        if not text and not self.pending_vision_images and self.mode != "vision":
+            return
         self.input.clear()
-        if self._try_slash(text): return
-        self._append("you", text)
+        if text and self._try_slash(text):
+            return
 
-        def worker(msg=text, mode=self.mode):
-            try:
-                t0 = time.time()
-                if mode == "chat":
-                    self.appended.emit("overlay", "↗ LLM(chat) 요청")
-                    out = self.orch.chat(msg)
-                    out = strip_think_and_fences(out)
-                    dt = int((time.time()-t0)*1000)
-                    self.appended.emit("overlay", f"↙ LLM(chat) 응답 ({dt}ms)")
-                    self.appended.emit("llm-14B", out or "(empty)")
-                    # also try tools (optional)
-                    self.appended.emit("overlay", "↗ LLM(tools) 요청")
-                    parsed = self.orch.orchestrate(msg)
-                    say = strip_think_and_fences(parsed.get("say") or "")
-                    tcs = parsed.get("tool_calls") or []
-                    if not say and tcs:
-                        say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
-                    dt2 = int((time.time()-t0)*1000)
-                    self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt2}ms)")
-                    self.appended.emit("llm-4B", say or "(no text; tools only)")
-                    if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
-                        raw = self.orch.last_tools_raw
-                        if len(raw) > 4000: raw = raw[:4000] + " ... (truncated)"
-                        self.appended.emit("debug", f"raw: {raw}")
-                else:
-                    self.appended.emit("overlay", "↗ LLM(tools) 요청")
-                    parsed = self.orch.orchestrate(msg)
-                    say = strip_think_and_fences(parsed.get("say") or "")
-                    tcs = parsed.get("tool_calls") or []
-                    if not say and tcs:
-                        say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
-                    dt = int((time.time()-t0)*1000)
-                    self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt}ms)")
-                    self.appended.emit("llm-4B", say or "(no text; tools only)")
-                    if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
-                        raw = self.orch.last_tools_raw
-                        if len(raw) > 4000: raw = raw[:4000] + " ... (truncated)"
-                        self.appended.emit("debug", f"raw: {raw}")
-            except Exception as e:
-                self.appended.emit("error", str(e))
-                logger.exception("overlay worker error")
-        threading.Thread(target=worker, daemon=True).start()
+        if self.mode == "vision":
+            if text:
+                self._append("you", text)
+            parts = list(self.pending_vision_images)
+            if text:
+                parts.append({"type": "text", "text": text})
+            if not parts:
+                return
+            messages = [{"role": "user", "content": parts}]
+            self.pending_vision_images = []
+
+            def worker(messages=messages):
+                try:
+                    out = self.orch.chat_vision(messages)
+                    self.appended.emit("vision", strip_think_and_fences(out))
+                except Exception as e:
+                    self.appended.emit("error", f"vision failed: {e}")
+            threading.Thread(target=worker, daemon=True).start()
+            return
+
+        if text:
+            self._append("you", text)
+
+            def worker(msg=text, mode=self.mode):
+                try:
+                    t0 = time.time()
+                    if mode == "chat":
+                        self.appended.emit("overlay", "↗ LLM(chat) 요청")
+                        out = self.orch.chat(msg)
+                        out = strip_think_and_fences(out)
+                        dt = int((time.time()-t0)*1000)
+                        self.appended.emit("overlay", f"↙ LLM(chat) 응답 ({dt}ms)")
+                        self.appended.emit("llm-14B", out or "(empty)")
+                        # also try tools (optional)
+                        self.appended.emit("overlay", "↗ LLM(tools) 요청")
+                        parsed = self.orch.orchestrate(msg)
+                        say = strip_think_and_fences(parsed.get("say") or "")
+                        tcs = parsed.get("tool_calls") or []
+                        if not say and tcs:
+                            say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
+                        dt2 = int((time.time()-t0)*1000)
+                        self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt2}ms)")
+                        self.appended.emit("llm-4B", say or "(no text; tools only)")
+                        if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
+                            raw = self.orch.last_tools_raw
+                            if len(raw) > 4000: raw = raw[:4000] + " ... (truncated)"
+                            self.appended.emit("debug", f"raw: {raw}")
+                    else:
+                        self.appended.emit("overlay", "↗ LLM(tools) 요청")
+                        parsed = self.orch.orchestrate(msg)
+                        say = strip_think_and_fences(parsed.get("say") or "")
+                        tcs = parsed.get("tool_calls") or []
+                        if not say and tcs:
+                            say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
+                        dt = int((time.time()-t0)*1000)
+                        self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt}ms)")
+                        self.appended.emit("llm-4B", say or "(no text; tools only)")
+                        if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
+                            raw = self.orch.last_tools_raw
+                            if len(raw) > 4000: raw = raw[:4000] + " ... (truncated)"
+                            self.appended.emit("debug", f"raw: {raw}")
+                except Exception as e:
+                    self.appended.emit("error", str(e))
+                    logger.exception("overlay worker error")
+            threading.Thread(target=worker, daemon=True).start()
 
     def on_image(self):
         """이미지 파일을 선택해 비전 모델로 전송"""
@@ -1715,20 +1752,12 @@ class OverlayWindow(QtWidgets.QWidget):
                 mime = "image/jpeg"
             elif path.lower().endswith(".bmp"):
                 mime = "image/bmp"
-            msg = [{
-                "role": "user",
-                "content": [{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}]
-            }]
+            self.pending_vision_images.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{b64}"}
+            })
             self.set_mode("vision")
             self._append("you", f"[이미지] {os.path.basename(path)}")
-
-            def worker(messages=msg):
-                try:
-                    out = self.orch.chat_vision(messages)
-                    self.appended.emit("vision", strip_think_and_fences(out))
-                except Exception as e:
-                    self.appended.emit("error", f"vision failed: {e}")
-            threading.Thread(target=worker, daemon=True).start()
         except Exception as e:
             self._append("error", f"이미지 로드 실패: {e}")
 

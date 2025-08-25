@@ -17,6 +17,7 @@ python app.py                  # 기본: 자동 루프백 캡처 + 로컬 STT + 
 ## 핵심 설정 (`config.yaml`)
 - `capture.mode`: `"auto"`(기본) → WASAPI (loopback) 시도, 실패 시 `soundcard`로 기본 스피커 루프백
 - `capture.mode: "device"` + `device_index`로 **특정 장치 고정**
+- `capture.mode: "app"` + `apps` 배열로 **특정 프로그램 세션만 캡처** (예: `Discord.exe`, `chrome.exe`)
 - `stt.backend`: `"local"`(faster-whisper) 또는 `"server"`(내가 제공한 `stt_server.py` 같은 서버)
 - `force.enable: true` → **VAD가 말을 못 잡아도 RMS 기준으로 강제 STT**
 

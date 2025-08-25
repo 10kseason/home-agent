@@ -8,6 +8,8 @@ faster-whisper==1.0.1
 
 # Fallback loopback
 soundcard==0.4.2
+pycaw>=20231210
+comtypes>=1.2.0
 
 # File I/O + HTTP + config
 soundfile>=0.12.1

@@ -74,6 +74,21 @@ except Exception:
     sc = None
     print("[INFO] soundcard not available (fallback engine).", file=sys.stderr)
 
+# Per-application capture
+try:
+    from ctypes import POINTER, cast, string_at
+    from comtypes import CLSCTX_ALL
+    from pycaw.pycaw import AudioUtilities, IAudioClient, IAudioCaptureClient
+    from pycaw.constants import AUDCLNT_STREAMFLAGS_LOOPBACK, AUDCLNT_SHAREMODE_SHARED
+except Exception:
+    AudioUtilities = None
+    IAudioClient = None
+    IAudioCaptureClient = None
+    CLSCTX_ALL = None
+    AUDCLNT_STREAMFLAGS_LOOPBACK = 0
+    AUDCLNT_SHAREMODE_SHARED = 0
+    print("[INFO] pycaw not available (app capture disabled).", file=sys.stderr)
+
 
 def _log(s: str):
     print(f"[DEBUG] {s}")
@@ -103,6 +118,7 @@ class CaptureCfg:
     block_ms: int
     channels: int
     dtype: str
+    apps: List[str]
 
 @dataclass
 class VADCfg:
@@ -198,6 +214,7 @@ def load_config(path: str = "config.yaml") -> Config:
             block_ms=int(cap.get("block_ms", 20)),
             channels=int(cap.get("channels", 1)),
             dtype=cap.get("dtype", "float32"),
+            apps=[a.lower() for a in cap.get("apps", [])],
         ),
         vad=VADCfg(
             aggressiveness=int(vad.get("aggressiveness", 2)),
@@ -451,13 +468,121 @@ class SCLoopbackSource(BaseAudioSource):
             self.thread = None
 
 
+class AppLoopbackSource(BaseAudioSource):
+    """Capture audio from specific applications via WASAPI loopback"""
+    def __init__(self, cfg: Config):
+        if AudioUtilities is None:
+            raise RuntimeError("pycaw not available")
+        self.cfg = cfg
+        self.app_names = cfg.capture.apps
+        self.frame_samples = int(cfg.capture.sample_rate * cfg.capture.block_ms / 1000)
+        self.queue = queue.Queue(maxsize=50)
+        self.running = False
+        self.thread = None
+        self.clients = []
+
+    def _setup_clients(self):
+        sessions = AudioUtilities.GetAllSessions()
+        for session in sessions:
+            proc = session.Process
+            if not proc:
+                continue
+            if proc.name().lower() not in self.app_names:
+                continue
+            ctl = session._ctl
+            client = ctl.QueryInterface(IAudioClient)
+            wfx = client.GetMixFormat()
+            client.Initialize(
+                AUDCLNT_SHAREMODE_SHARED,
+                AUDCLNT_STREAMFLAGS_LOOPBACK,
+                0,
+                0,
+                wfx,
+                None,
+            )
+            capture_client = client.GetService(IAudioCaptureClient)
+            client.Start()
+            self.clients.append((client, capture_client, wfx))
+
+    def _runner(self):
+        while self.running:
+            for client, cap, wfx in self.clients:
+                try:
+                    pkt = cap.GetNextPacketSize()
+                    while pkt > 0:
+                        data_ptr, frames, flags, _, _ = cap.GetBuffer()
+                        buff = string_at(data_ptr, frames * wfx.nBlockAlign)
+                        arr = np.frombuffer(buff, dtype=np.int16)
+                        if wfx.nChannels > 1:
+                            arr = arr.reshape(-1, wfx.nChannels).mean(axis=1)
+                        arr = arr.astype(np.float32) / 32768.0
+                        if wfx.nSamplesPerSec != self.cfg.capture.sample_rate and arr.size > 0:
+                            # simple linear resample
+                            factor = self.cfg.capture.sample_rate / wfx.nSamplesPerSec
+                            idx = np.round(np.arange(0, arr.size * factor) / factor).astype(int)
+                            idx = np.clip(idx, 0, arr.size - 1)
+                            arr = arr[idx]
+                        arr = arr.reshape(-1, 1)
+                        if arr.shape[0] < self.frame_samples:
+                            pad = np.zeros((self.frame_samples - arr.shape[0], 1), dtype=np.float32)
+                            arr = np.vstack([arr, pad])
+                        elif arr.shape[0] > self.frame_samples:
+                            arr = arr[:self.frame_samples]
+                        try:
+                            self.queue.put_nowait(arr.copy())
+                        except queue.Full:
+                            pass
+                        cap.ReleaseBuffer(frames)
+                        pkt = cap.GetNextPacketSize()
+                except Exception:
+                    continue
+            time.sleep(self.cfg.capture.block_ms / 1000.0)
+
+    def start(self):
+        if self.running:
+            return
+        self._setup_clients()
+        if not self.clients:
+            raise RuntimeError("No target application sessions found")
+        self.running = True
+        self.thread = threading.Thread(target=self._runner, daemon=True)
+        self.thread.start()
+
+    def read(self, timeout: Optional[float] = None):
+        try:
+            return self.queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
+
+    def stop(self):
+        self.running = False
+        if self.thread is not None:
+            self.thread.join(timeout=1.0)
+            self.thread = None
+        for client, _, _ in self.clients:
+            try:
+                client.Stop()
+            except Exception:
+                pass
+        self.clients.clear()
+
+
 class AudioSourceManager(BaseAudioSource):
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.src: Optional[BaseAudioSource] = None
 
     def start(self):
-        # Try sounddevice first
+        if self.cfg.capture.mode == "app":
+            try:
+                app_src = AppLoopbackSource(self.cfg)
+                app_src.start()
+                self.src = app_src
+                print("[INFO] Using per-application loopback engine.")
+                return
+            except Exception as e:
+                print(f"[ERROR] app loopback failed: {e}", file=sys.stderr)
+
         if self.cfg.capture.mode in ("auto", "device"):
             try:
                 sd_src = SDLoopbackSource(self.cfg)
@@ -468,7 +593,6 @@ class AudioSourceManager(BaseAudioSource):
             except Exception as e:
                 print(f"[INFO] sounddevice engine unavailable: {e}", file=sys.stderr)
 
-        # Fallback to soundcard if available
         if sc is not None:
             try:
                 sc_src = SCLoopbackSource(self.cfg)
