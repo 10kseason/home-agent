@@ -143,7 +143,12 @@ class EventHandler:
         language = payload.get("language", "")
         if language:
             display_text += f" [{language}]"
-        
+
+        # 사용된 STT 모델 정보
+        model = payload.get("model", "")
+        if model:
+            display_text += f" ({model})"
+
         self._emit_safe("🎤 STT", display_text)
         return True
     
@@ -1525,6 +1530,7 @@ class OverlayWindow(QtWidgets.QWidget):
                      "  /memory reload           → tool_memory.txt 다시 읽기\n"
                      "  /model tools <name>      → 4B 모델 변경\n"
                      "  /model chat <name>       → 14B 모델 변경\n"
+                     "  /model vision <name>     → 비전 모델 변경\n"
                      "  /opacity <0~1>           → 투명도 조절\n"
                      "  /size WxH                → 크기 변경 ex) /size 680x520\n"
                      "  /pos X Y                 → 위치 이동\n"
@@ -1602,6 +1608,8 @@ class OverlayWindow(QtWidgets.QWidget):
                 self.orch.cfg.setdefault("llm_tools", {})["model"] = name; self._append("overlay", f"tools 모델 변경: {name}"); return True
             if which == "chat":
                 self.orch.cfg.setdefault("llm_chat", {})["model"] = name; self._append("overlay", f"chat 모델 변경: {name}"); return True
+            if which == "vision":
+                self.orch.cfg.setdefault("llm_vision", {})["model"] = name; self._append("overlay", f"vision 모델 변경: {name}"); return True
         if cmd == "/opacity" and len(toks) == 2:
             try:
                 val = float(toks[1]); self.setWindowOpacity(max(0.1, min(1.0, val))); self._append("overlay", f"opacity={self.windowOpacity():.2f}"); return True

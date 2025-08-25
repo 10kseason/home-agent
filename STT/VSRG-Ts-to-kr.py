@@ -994,6 +994,7 @@ def run_pipeline(cfg: Config):
                             "text": english,
                             "translation": korean,
                             "source": "VSRG",
+                            "model": cfg.stt.model,
                         })
                     continue
 
@@ -1032,6 +1033,7 @@ def run_pipeline(cfg: Config):
                                     "text": english,
                                     "translation": korean,
                                     "source": "VSRG/forced",
+                                    "model": cfg.stt.model,
                                 })
                             continue
                         force_ms = 0
@@ -1062,6 +1064,7 @@ def run_pipeline(cfg: Config):
                                 "text": english,
                                 "translation": korean,
                                 "source": "VSRG/sustained",
+                                "model": cfg.stt.model,
                             })
         except KeyboardInterrupt:
             print("[INFO] Interrupted.")
