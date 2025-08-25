@@ -1,0 +1,24 @@
+2025-08-24 10:26:24.055 | INFO     | __main__:start:711 - [proxy] started at http://127.0.0.1:8350/v1/chat/completions
+2025-08-24 10:26:26.825 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=2
+2025-08-24 10:26:29.481 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 29 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:26:35.282 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=4
+2025-08-24 10:26:35.802 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 62 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:26:35.844 | INFO     | __main__:_proc_launch:536 - [proc] launched ocr pid=21520 cmd=['D:/jip/home-agent/.venv/Scripts/python.exe', 'D:/jip/home-agent/OCR/main.py'] cwd=D:/jip/home-agent/OCR
+2025-08-24 10:27:37.248 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=GPT-OSS-20B msgs=2
+2025-08-24 10:27:52.968 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 47 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:27:52.975 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=6
+2025-08-24 10:27:56.528 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 70 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:28:22.048 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=GPT-OSS-20B msgs=4
+2025-08-24 10:28:37.421 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 264 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:28:37.430 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=8
+2025-08-24 10:28:40.612 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 76 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:28:40.630 | INFO     | __main__:_proc_launch:536 - [proc] launched web pid=32896 cmd=['D:/jip/home-agent/.venv/Scripts/python.exe', 'D:/jip/home-agent/Overlay/plugins/web_search.py', '--query', '마인크래푸투', '--topk', '5', '--summarize', '--post'] cwd=D:/jip/home-agent/Overlay/plugins
+2025-08-24 10:28:56.503 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=GPT-OSS-20B msgs=6
+2025-08-24 10:29:08.330 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 47 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:29:08.336 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=9
+2025-08-24 10:29:11.495 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 81 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:29:54.413 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=9
+2025-08-24 10:29:56.701 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 295 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:30:04.393 | INFO     | __main__:_chat_complete_raw:417 - [llm] POST http://127.0.0.1:1234/v1/chat/completions model=qwen/qwen3-4b-2507 msgs=9
+2025-08-24 10:30:06.273 | INFO     | __main__:_chat_complete_raw:431 - [llm] got 118 chars (finish_reason=stop); tool_calls=0
+2025-08-24 10:30:06.292 | INFO     | __main__:_proc_launch:536 - [proc] launched stt pid=34332 cmd=['D:/jip/home-agent/.venv/Scripts/python.exe', 'D:/jip/home-agent/STT/VSRG-Ts-to-KR.py'] cwd=D:/jip/home-agent/STT

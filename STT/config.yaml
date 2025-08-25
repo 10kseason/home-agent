@@ -1,0 +1,79 @@
+# ================================
+# VSRG Translator Pro - Config
+# ================================
+
+# ---- Capture ----
+capture:
+  mode: "auto"                # "device" | "device" ; auto=try WASAPI loopback → fallback to soundcard(default speaker)
+  device_index: 56            # used only if mode="device"
+  device_name: ""             # optional substring match, used only if mode="device"
+  sample_rate: 16000          # internal processing sample rate (VAD/STT)
+  block_ms: 20                # frame size in milliseconds (10/20/30ms typical for VAD)
+  channels: 1                 # mono
+  dtype: "float32"            # float32 recommended for sounddevice; converted downstream
+
+# ---- VAD ----
+vad:
+  aggressiveness: 3           # 0-3 (3 = strict speech-only)
+  silence_pad_ms: 400       # end-of-speech padding
+  max_segment_ms: 9000       # safety hard cut
+
+# ---- Forced Segmentation (when VAD misses speech) ----
+force:
+  enable: true
+  rms_speech_threshold_dbfs: -33.0  # >= this is considered speech-like
+  min_forced_segment_ms: 2000      # minimum duration to cut on loud→quiet
+  sustained_loud_ms: 7000           # force if loud this long with no VAD end
+  max_buffer_ms: 20000              # cap buffer
+
+# ---- STT ----
+stt:
+  backend: "local"            # "local" | "server"
+  model: "small.en"           # local only
+  compute_type: "auto"        # "auto" | "float16" | "int8"; auto=GPU→float16, CPU→int8
+  language: "en"              # null to autodetect
+  beam_size: 5
+  vad_filter: true
+  server_url: "http://127.0.0.1:8008/v1/transcribe-raw"   # used when backend="server"
+
+# ---- Translation (LM Studio / OpenAI-compatible) ----
+translate:
+  enable: true
+  url: "http://127.0.0.1:1234/v1/chat/completions"
+  model: "HyperCLOVAX-SEED-Text-Instruct-1.5B"
+  temperature: 0.2
+  max_tokens: 586
+  system_prompt: |
+    You are a concise, natural Korean translator.
+    Translate the following English text into a single, short Korean sentence.
+    Keep meaning faithful; preserve tone (casual vs. formal). No extra commentary.
+    Output ONLY the Korean translation.
+
+# ---- UI ----
+ui:
+  enable: true
+  font_family: "Malgun Gothic"
+  font_size_en: 14
+  font_size_ko: 16
+  width: 980
+  height: 260
+  topmost: true
+  theme_bg: "#101316"
+  theme_fg: "#E6E6E6"
+  accent_fg: "#9ADCF8"
+
+# ---- Debug / Logging ----
+debug:
+  log_segments: true
+  write_wav_segments: false     # write each segment to ./segments/*.wav
+  list_devices_on_start: false
+
+
+# ---- Preview ----
+preview:
+  enable: true
+  every_ms: 900      # 프리뷰 STT 주기
+  window_ms: 4000    # 최근 4초만 사용
+  model: "tiny.en"   # 빠른 프리뷰용
+  compute_type: "int8"
+  rms_gate_dbfs: -35.0 # 이 값 이상이면 "말하는 중"으로 간주

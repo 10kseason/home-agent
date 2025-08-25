@@ -1,0 +1,18 @@
+# Audio + realtime
+sounddevice==0.4.6
+numpy>=1.24
+webrtcvad==2.0.10
+
+# Whisper STT (local)
+faster-whisper==1.0.1
+
+# Fallback loopback
+soundcard==0.4.2
+
+# File I/O + HTTP + config
+soundfile>=0.12.1
+requests>=2.32.0
+PyYAML>=6.0.1
+
+# GUI
+# (Tkinter is part of Python on Windows; no PIP line)

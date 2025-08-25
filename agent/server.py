@@ -1,0 +1,178 @@
+import asyncio, os, sys, subprocess, platform, time
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Depends, Header, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from loguru import logger
+from .schemas import Event, Result, PluginEventIn
+
+def _spawn_overlay(cfg):
+    ov = (cfg or {}).get("overlay", {}) or {}
+    if not ov.get("enable"):
+        logger.info("[overlay] disabled")
+        return None
+
+    py = ov.get("python") or sys.executable
+    script = ov.get("script")
+    if not script or not os.path.exists(script):
+        logger.warning("[overlay] script not set or not found; skip auto-launch")
+        return None
+
+    cwd = ov.get("cwd") or os.path.dirname(script)
+    args = ov.get("args", []) or []
+
+    creationflags = 0
+    if platform.system() == "Windows" and ov.get("no_console", False):
+        creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+    cmd = [py, script, *args]
+    try:
+        proc = subprocess.Popen(cmd, cwd=cwd, creationflags=creationflags)
+        logger.info(f"[overlay] launched pid={proc.pid} cmd={cmd}")
+        return proc
+    except Exception as e:
+        logger.error(f"[overlay] launch failed: {e}")
+        return None
+
+async def _terminate_proc(proc, name="overlay", timeout: float = 3.0):
+    if proc is None:
+        return
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+        logger.info(f"[{name}] terminated")
+    except Exception as e:
+        logger.debug(f"[{name}] terminate error: {e}")
+
+def create_app(ctx, plugins=None):
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Startup
+        app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
+        try:
+            # Wire plugins into the event bus
+            app.state._plugin_unsubs = []
+            for p in (plugins or []):
+                for prefix in getattr(p, "handles", []) or []:
+                    async def _handler(ev, _p=p):
+                        try:
+                            await _p.handle(ev)
+                        except Exception as e:
+                            logger.error(f"[plugin:{getattr(_p, 'name', _p)}] handle error: {e}")
+                    ctx.bus.subscribe(prefix, _handler)
+                    app.state._plugin_unsubs.append((prefix, _handler))
+                    logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
+            yield
+        finally:
+            # Unsubscribe plugins
+            try:
+                for prefix, h in getattr(app.state, "_plugin_unsubs", []):
+                    try:
+                        ctx.bus.unsubscribe(prefix, h)
+                    except Exception:
+                        pass
+                app.state._plugin_unsubs = []
+            except Exception:
+                pass
+            # Shutdown overlay
+            try:
+                await _terminate_proc(getattr(app.state, "overlay_proc", None), name="overlay", timeout=3.0)
+            except Exception as e:
+                logger.debug(f"[lifespan] overlay terminate error: {e}")
+            app.state.overlay_proc = None
+
+    app = FastAPI(title="Luna Local Agent", lifespan=lifespan)
+
+    # CORS for external plugins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Simple header auth (optional)
+    def _auth(x_key: str | None = Header(default=None, alias="X-Agent-Key")):
+        want = (getattr(ctx, "config", {}).get("server") or {}).get("api_key")
+        if want and x_key != want:
+            raise HTTPException(status_code=401, detail="invalid api key")
+
+    # ---- Health & root ----
+    @app.get("/")
+    async def root():
+        return {"ok": True, "name": "Luna Local Agent"}
+
+    @app.get("/health")
+    async def health():
+        proc = getattr(app.state, "overlay_proc", None)
+        running = bool(proc and proc.poll() is None)
+        return {"ok": True, "overlay_running": running}
+
+    # Ingest fully-formed internal Event
+    @app.post("/event")
+    async def ingest_event(ev: Event):
+        try:
+            await ctx.bus.publish(ev)
+            return JSONResponse(Result(ok=True, message="queued").model_dump())
+        except Exception as ex:
+            logger.exception("Failed to enqueue event")
+            raise HTTPException(status_code=500, detail=str(ex))
+
+    # Plugin ingress (loose schema → normalize to Event)
+    plugin = APIRouter(prefix="/plugin")
+
+    @plugin.post("/event")
+    async def plugin_event(body: PluginEventIn, _=Depends(_auth)):
+        ev = Event(
+            type=body.type,
+            payload=body.payload or {},
+            priority=int(body.priority or 5),
+            source=body.source or "plugin",
+            timestamp=time.time(),
+        )
+        await ctx.bus.publish(ev)
+        return {"ok": True, "message": "queued"}
+
+    @plugin.post("/events")
+    async def plugin_events(bodies: list[PluginEventIn], _=Depends(_auth)):
+        for b in bodies:
+            ev = Event(
+                type=b.type,
+                payload=b.payload or {},
+                priority=int(b.priority or 5),
+                source=b.source or "plugin",
+                timestamp=time.time(),
+            )
+            await ctx.bus.publish(ev)
+        return {"ok": True, "message": f"queued {len(bodies)} events"}
+
+    app.include_router(plugin)
+
+    # --- overlay control (optional) ---
+    @app.post("/overlay/start")
+    async def overlay_start():
+        proc = getattr(app.state, "overlay_proc", None)
+        if proc and proc.poll() is None:
+            return {"ok": True, "status": "already_running", "pid": proc.pid}
+        app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
+        if app.state.overlay_proc:
+            return {"ok": True, "status": "launched", "pid": app.state.overlay_proc.pid}
+        raise HTTPException(status_code=500, detail="overlay launch failed")
+
+    @app.post("/overlay/stop")
+    async def overlay_stop():
+        await _terminate_proc(getattr(app.state, "overlay_proc", None), name="overlay", timeout=3.0)
+        app.state.overlay_proc = None
+        return {"ok": True, "status": "stopped"}
+
+    @app.get("/overlay/status")
+    async def overlay_status():
+        proc = getattr(app.state, "overlay_proc", None)
+        running = bool(proc and proc.poll() is None)
+        return {"ok": True, "running": running, "pid": (proc.pid if running else None)}
+
+    return app

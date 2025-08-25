@@ -1,0 +1,14 @@
+2025-08-24 10:19:10.088 | INFO     | __main__:start:751 - [proxy] started at http://127.0.0.1:8350/v1/chat/completions
+2025-08-24 10:19:12.159 | ERROR    | __main__:worker:1142 - overlay worker error
+Traceback (most recent call last):
+  File "C:\Users\error\AppData\Local\Programs\Python\Python310\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\error\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\error\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+> File "D:\jip\home-agent\Overlay\overlay_app.py", line 1128, in worker
+    parsed = self.orch.orchestrate(msg)
+  File "D:\jip\home-agent\Overlay\overlay_app.py", line 289, in orchestrate
+    parsed = asyncio.run(self.call_tools(user_text))
+AttributeError: 'Orchestrator' object has no attribute 'call_tools'

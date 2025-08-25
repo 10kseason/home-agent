@@ -1,0 +1,12 @@
+2025-08-24 09:57:21.880 | INFO     | __main__:start:712 - [proxy] started at http://127.0.0.1:8350/v1/chat/completions
+2025-08-24 09:57:23.818 | ERROR    | __main__:worker:1103 - overlay worker error
+Traceback (most recent call last):
+  File "C:\Users\error\AppData\Local\Programs\Python\Python310\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\error\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\error\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+> File "D:\jip\home-agent\Overlay\overlay_app.py", line 1089, in worker
+    parsed = self.orch.orchestrate(msg)
+AttributeError: 'Orchestrator' object has no attribute 'orchestrate'
