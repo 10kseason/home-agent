@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json, sys
 from typing import Dict, Any
-from tools.security.orchestrator_hooks import (
+from ..security.orchestrator_hooks import (
     guard_prompt_injection_check, secrets_scan, rl, gate,
     sched_create, sched_cancel, sched_list
 )

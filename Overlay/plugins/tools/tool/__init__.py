@@ -27,7 +27,7 @@ def _autodiscover():
 # Run discovery at import-time
 _autodiscover()
 
-# Optional: expose tool schemas from tools/config/tools.yaml
+# Optional: expose tool schemas from Overlay/plugins/tools/config/tools.yaml
 def list_tools_from_yaml() -> List[Dict[str, Any]]:
     from pathlib import Path
     try:

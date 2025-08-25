@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-tools.tool — runtime tool handlers matching tools/config/tools.yaml
+tools.tool — runtime tool handlers matching Overlay/plugins/tools/config/tools.yaml
 """
 from __future__ import annotations
 import re, os, json, time, uuid

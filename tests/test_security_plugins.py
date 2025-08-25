@@ -1,7 +1,7 @@
 import time
 import os, sys
 sys.path.append(os.path.abspath('.'))
-from tools.security.security_plugins import (
+from Overlay.plugins.tools.security.security_plugins import (
     guard_prompt_injection_check,
     secrets_scan,
     RateLimiter,

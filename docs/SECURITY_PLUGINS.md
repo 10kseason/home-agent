@@ -22,7 +22,7 @@
 ## 스케줄러 예시
 
 ```python
-from tools.security.orchestrator_hooks import sched_create, sched_list
+from Overlay.plugins.tools.security.orchestrator_hooks import sched_create, sched_list
 
 # 1회 실행
 sched_create({"title": "once", "interval_sec": 10})

@@ -6,7 +6,7 @@ from .tool.runtime_registry import ToolRegistry
 
 
 class YamlToolsPlugin:
-    """Expose YAML-defined tools from tools/config/tools.yaml as overlay plugin."""
+    """Expose YAML-defined tools from Overlay/plugins/tools/config/tools.yaml as overlay plugin."""
 
     def __init__(self, config: Dict[str, Any] | None = None) -> None:
         self.config = config or {}
