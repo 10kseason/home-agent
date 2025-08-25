@@ -4,10 +4,11 @@
 
 # ---- Capture ----
 capture:
-  mode: "auto"                # "auto" | "device" | "app"
+  mode: "app"                # "auto" | "device" | "app"
   device_index: 56            # used only if mode="device"
   device_name: ""             # optional substring match, used only if mode="device"
-  apps: []                    # list of process names when mode="app" (e.g., ["Discord.exe", "chrome.exe"])
+  apps: ["Discord.exe", "msedge.exe", "firefox.exe", "chrome.exe"]
+                            # list of process names when mode="app" (e.g., ["Discord.exe", "msedge.exe"])
   sample_rate: 16000          # internal processing sample rate (VAD/STT)
   block_ms: 20                # frame size in milliseconds (10/20/30ms typical for VAD)
   channels: 1                 # mono
