@@ -308,6 +308,8 @@ class MainWindow(QMainWindow):
         self.chk_fast.setChecked(self.cfg.get("fast_vlm_mode", False))
         self.ed_fast_model = QLineEdit(self.cfg.get("fast_vlm_model", ""))
         self.ed_fast_model.setPlaceholderText("예: lfm2-vl-1.6b")
+        self.chk_fast.toggled.connect(self._on_fast_toggled)
+        self._on_fast_toggled(self.chk_fast.isChecked())
 
         # 알림/옵션
         self.chk_copy = QCheckBox("번역 결과를 자동으로 클립보드에 복사")
@@ -427,6 +429,11 @@ class MainWindow(QMainWindow):
         self.register_hotkey(auto=True)
         self.shortcut = QShortcut(QKeySequence(self.cfg["hotkey"]), self)
         self.shortcut.activated.connect(self.trigger_snip)
+
+    def _on_fast_toggled(self, checked: bool):
+        """고속 모드 토글 시 기본 OCR/번역 설정 비활성화"""
+        self.ed_ocr_model.setEnabled(not checked)
+        self.ed_trans_model.setEnabled(not checked)
 
     # ---------- 알림 유틸 ----------
     def _truncate(self, s: str, max_len: int = 240) -> str:
