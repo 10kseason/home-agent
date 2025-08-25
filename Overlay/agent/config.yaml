@@ -1,0 +1,30 @@
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+policy:
+  autonomy_level: "auto"  # auto | confirm | hybrid
+  batch_seconds: 300
+
+translate:
+  provider: "lmstudio"    # lmstudio | ollama | openai
+  endpoint: "http://127.0.0.1:1234/v1"
+  model: "qwen/qwen3-4b-2507"
+  api_key: ""
+  max_refine_chars: 6500                 # LLM 보낼 최대 글자
+  severity_threshold: 2                  # 0~3: 2 이상이면 LLM 보정 실행
+
+sinks:
+  toast: true
+  log_file: "agent_output.log"
+
+limits:
+  dedup_window_seconds: 3600
+  max_queue_size: 1000
+
+overlay:
+  enable: true
+  python: "D:/jip/home-agent/.venv/Scripts/python.exe"      # 루트 venv
+  script: "D:/jip/home-agent/Overlay/overlay_app.py"        # 오버레이 스크립트
+  cwd: "D:/jip/home-agent/Overlay"                         # 작업 디렉터리
+  args: []                                                  # 필요시 인자
