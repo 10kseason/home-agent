@@ -24,6 +24,7 @@ import base64
 import webbrowser
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tools.security.orchestrator_hooks import (
     pre_ingest_external,
     before_tool,
