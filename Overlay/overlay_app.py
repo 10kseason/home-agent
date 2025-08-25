@@ -319,6 +319,10 @@ DEFAULT_MEMORY = (
     "- Never translate content yourself. External pipelines handle translation.\\n"
     "- Do not store memory; assume these rules persist between turns.\\n"
     "- Tool calls work only when response is valid JSON; other text is ignored.\\n\\n"
+    "0) Tools are discovered from the runtime registry loaded from \"tools/config/tools.yaml\".\\n"
+    "   - Never call tools not present in that registry.\\n"
+    "   - If unsure what exists, first call {\"name\":\"agent.list_tools\",\"args\":{}} to fetch names.\\n"
+    "   - Use each tool's \"parameters\" schema from the registry; do not invent arguments.\\n\\n"
     "When to call tools:\\n"
     "1) OCR needed (new subtitles, small UI text, non-Korean text visible)\\n"
     "   -> {\"name\":\"ocr.start\",\"args\":{\"hint\":\"subtitle|ui|document\"}}\\n"
@@ -333,6 +337,7 @@ DEFAULT_MEMORY = (
     "   -> {\"name\":\"agent.event\",\"args\":{\"type\":\"overlay.note\",\"payload\":{\"note\":\"...\",\"source\":\"overlay\"},\"priority\":5}}\\n\\n"
     "5) Open a link in the default browser\\n"
     "   -> {\"name\":\"overlay.open_url\",\"args\":{\"url\":\"https://...\"}}\\n"
+    "\\nAvailable tools will be listed below and can be refreshed via /tools command.\\n"
 )
 
 
@@ -1558,6 +1563,37 @@ class OverlayWindow(QtWidgets.QWidget):
             msg.append(f"  - {k}: {v.get('event_url','(none)')}")
         self._append('overlay', "\n".join(msg))
 
+    def _show_tools(self):
+        names = set()
+        try:
+            names.update((self.orch.cfg.get('tools') or {}).keys())
+            handler = TOOL_HANDLERS.get('agent.list_tools')
+            if handler:
+                res = handler({})
+                if isinstance(res, dict):
+                    names.update(res.get('implemented') or [])
+                    for item in res.get('tools', []):
+                        fn = (item.get('function') or {}).get('name')
+                        if fn:
+                            names.add(fn)
+        except Exception as e:
+            self._append('error', f'agent.list_tools failed: {e}')
+            return
+        if not names:
+            self._append('overlay', '사용 가능한 툴이 없습니다.')
+            return
+        msg = ['사용 가능한 툴:'] + [f'  - {n}' for n in sorted(names)]
+        self._append('overlay', "\n".join(msg))
+        try:
+            base, _, _ = read_tool_memory().partition("\nAvailable tools:\n")
+            new_mem = base.rstrip() + "\n\nAvailable tools:\n" + "\n".join(f"- {n}" for n in sorted(names)) + "\n"
+            with open(MEMO_PATH, 'w', encoding='utf-8') as f:
+                f.write(new_mem)
+            self.orch.reload_memory()
+            self._append('overlay', 'tool_memory.txt updated')
+        except Exception as e:
+            self._append('error', f'tool_memory update failed: {e}')
+
     def _run_tool_calls_async(self, calls):
         import threading
         def _w():
@@ -1601,6 +1637,7 @@ class OverlayWindow(QtWidgets.QWidget):
                      "  /ocr on|off             → OCR 시작/정지 (직접)\n"
                      "  /stt on|off             → STT 시작/정지 (직접)\n"
                      "  /web <query>           → 웹 검색 이벤트 전송\n"
+                     "  /tools                  → 통합 툴 목록 표시\n"
                      "  /plugins                → 플러그인 엔드포인트 표시\n"
                      "  /event ocr <url>       → OCR 이벤트 URL 변경\n"
                      "  /event stt <url>       → STT 이벤트 URL 변경\n"
@@ -1705,6 +1742,8 @@ class OverlayWindow(QtWidgets.QWidget):
             q = " ".join(toks[1:]).strip()
             self._run_tool_calls_async([{"name": "web.search", "args": {"q": q, "k": 5}}])
             return True
+        if cmd == "/tools":
+            self._show_tools(); return True
         if cmd == "/plugins":
             self._show_plugins(); return True
         if cmd == "/event" and len(toks) == 3 and toks[1].lower() in ("ocr","stt"):
