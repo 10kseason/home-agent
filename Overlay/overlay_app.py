@@ -969,6 +969,10 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
         return asyncio.run(self.call_vision(messages))
 
 
+def _orchestrator_alias(self, *a, **kw):
+    return self.orchestrate(*a, **kw)
+setattr(Orchestrator, "Orchestrator", _orchestrator_alias)
+
 # ---------------- Enhanced Proxy Server ----------------
 
 
