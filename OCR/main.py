@@ -7,7 +7,7 @@ LM Studio OCR → Translation Snipping Tool
 
 모드
 - 일반 모드: OCR 모델(비전/혹은 OCR LLM) → 텍스트 추출 → 번역 모델로 번역 (2단계)
-- 고속 모드: VLM 한 번 호출로 OCR+번역을 동시에 수행 (1단계, 빠름)
+- 고속 모드: lfm2-vl-1.6b로 OCR 후 언어별 모델을 사용해 한국어로 번역 (2단계)
 
 완료 시
 - 결과 창은 띄우지 않음 (요청사항)
@@ -21,6 +21,7 @@ import os
 import io
 import json
 import base64
+import re
 # ---- Luna Agent bridge (공통) ----
 import requests as _rq
 _AGENT_URL = os.environ.get("AGENT_EVENT_URL", "http://127.0.0.1:8765/plugin/event")
@@ -77,9 +78,9 @@ DEFAULT_CONFIG = {
     "ocr_model": "qwen2.5-vl",
     "translate_model": "qwen2.5-7b",
 
-    # 고속(VLM) 모드
+    # 고속 모드
     "fast_vlm_mode": False,
-    "fast_vlm_model": "",  # 미지정이면 ocr_model 사용
+    "fast_vlm_model": "lfm2-vl-1.6b",
 
     "target_language": "Korean",
     "hotkey": "ctrl+alt+o",
@@ -187,50 +188,39 @@ class WorkerOCRTranslate(QThread):
         resp.raise_for_status()
         return resp.json()
 
-    # ---- 고속 모드: VLM 1콜로 OCR+번역 ----
+    # ---- 고속 모드: lfm2-vl-1.6b OCR 후 언어별 번역 ----
     def _run_fast_vlm(self, image_bytes: bytes) -> tuple[str, str]:
         b64 = base64.b64encode(image_bytes).decode("ascii")
-        model_name = self.cfg["fast_vlm_model"].strip() or self.cfg["ocr_model"]
-        target = self.cfg["target_language"]
-        system = (
-            "You are an expert OCR+translation engine. "
-            "1) Read ALL visible text from the image (preserve line breaks). "
-            f"2) Translate it into {target}. "
-            "Return ONLY valid JSON with keys: ocr, translation. No code fences."
-        )
+        model_name = self.cfg.get("fast_vlm_model") or "lfm2-vl-1.6b"
         payload = {
             "model": model_name,
             "temperature": 0,
             "messages": [
-                {"role": "system", "content": system},
+                {
+                    "role": "system",
+                    "content": "You are an OCR engine. Extract ALL visible text from the image. Keep original line breaks. Output plain text only.",
+                },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Extract and translate. JSON only: {\"ocr\":\"...\",\"translation\":\"...\"}"},
+                        {"type": "text", "text": "Extract text (OCR). Return plain text only."},
                         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}},
                     ],
                 },
             ],
         }
         data = self._post_chat(payload)
-        content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+        ocr_text = ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
 
-        ocr_text, translated = "", ""
-        try:
-            j = json.loads(content)
-            ocr_text = (j.get("ocr") or "").strip()
-            translated = (j.get("translation") or "").strip()
-        except Exception:
-            txt = content.replace("\r", "")
-            if "TRANSLATION:" in txt.upper():
-                upper = txt.upper()
-                i = upper.find("TRANSLATION:")
-                ocr_text = txt[:i].replace("OCR:", "").strip()
-                translated = txt[i + 12 :].strip()
-            else:
-                translated = txt
-        if not ocr_text and translated:
-            ocr_text = "(VLM 고속 모드 - 원문 별도 제공 없음)"
+        lang = self._detect_lang(ocr_text)
+        if lang == "en":
+            model = "hyperclovax-seed-text-instruct-1.5b"
+        elif lang in ("ja", "zh"):
+            model = "qwen/qwen3-4b-thinking-2507"
+        else:
+            model = self.cfg["translate_model"]
+
+        translated = self._run_translate(ocr_text, model)
         return ocr_text, translated
 
     # ---- 일반 모드: OCR → 번역 ----
@@ -257,8 +247,8 @@ class WorkerOCRTranslate(QThread):
         data = self._post_chat(payload)
         return ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
 
-    def _run_translate(self, text: str) -> str:
-        model_name = self.cfg["translate_model"]
+    def _run_translate(self, text: str, model_name: str | None = None) -> str:
+        model_name = model_name or self.cfg["translate_model"]
         target = self.cfg["target_language"]
         system_prompt = (
             "You are a professional translator. Translate the user's text into the target language. "
@@ -275,6 +265,13 @@ class WorkerOCRTranslate(QThread):
         }
         data = self._post_chat(payload)
         return ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
+
+    def _detect_lang(self, text: str) -> str:
+        if re.search("[\u3040-\u30ff]", text):
+            return "ja"
+        if re.search("[\u4e00-\u9fff]", text):
+            return "zh"
+        return "en"
 
     def run(self):
         try:
@@ -307,10 +304,10 @@ class MainWindow(QMainWindow):
         self.ed_hotkey = QLineEdit(self.cfg["hotkey"])
 
         # 고속 모드
-        self.chk_fast = QCheckBox("고속 답변 모드 (VLM 한 번에 OCR+번역)")
+        self.chk_fast = QCheckBox("고속 OCR 모드")
         self.chk_fast.setChecked(self.cfg.get("fast_vlm_mode", False))
         self.ed_fast_model = QLineEdit(self.cfg.get("fast_vlm_model", ""))
-        self.ed_fast_model.setPlaceholderText("미입력 시 OCR 모델명 사용")
+        self.ed_fast_model.setPlaceholderText("예: lfm2-vl-1.6b")
 
         # 알림/옵션
         self.chk_copy = QCheckBox("번역 결과를 자동으로 클립보드에 복사")
@@ -358,7 +355,7 @@ class MainWindow(QMainWindow):
 
         grid.addWidget(self.chk_fast, r, 0, 1, 2)
         r += 1
-        grid.addWidget(QLabel("고속 모드용 VLM 모델(선택)"), r, 0)
+        grid.addWidget(QLabel("고속 모드용 OCR 모델"), r, 0)
         grid.addWidget(self.ed_fast_model, r, 1)
         r += 1
 

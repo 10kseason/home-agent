@@ -224,6 +224,10 @@ class EventHandler:
             label = "🤖 LLM-1.5B"
             
         # 텍스트 길이 제한
+        # 추론 모델 출력에서 <think>...</think> 구간 제거
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
+
         display_text = text.strip()
         if len(display_text) > 200:
             display_text = display_text[:197] + "..."
@@ -285,6 +289,7 @@ MEMO_PATH = os.path.join(APP_DIR, "tool_memory.txt")
 DEFAULT_CFG = {
     "llm_tools": {"endpoint": "http://127.0.0.1:1234/v1", "model": "qwen3-4b-instruct", "api_key": "", "timeout_seconds": 60},
     "llm_chat":  {"endpoint": "http://127.0.0.1:1234/v1", "model": "qwen3-14b-instruct", "api_key": "", "timeout_seconds": 60},
+    "llm_vision": {"endpoint": "http://127.0.0.1:1234/v1", "model": "gemma-3-12b-it-qat", "api_key": "", "timeout_seconds": 60},
     "agent": {"health_url": "http://127.0.0.1:8765/health", "event_url": "http://127.0.0.1:8765/event", "health_interval_seconds": 2, "health_fail_quit_count": 3},
     "tools": {},
     "proxy": {"enable": True, "host": "127.0.0.1", "port": 8350},
@@ -381,6 +386,22 @@ def extract_msg_content(choice_msg: Dict[str, Any]) -> str:
                     texts.append(p["content"])
         return "\n".join([t for t in texts if t])
     return ""
+
+
+def contains_image(messages: List[Dict[str, Any]]) -> bool:
+    for m in messages or []:
+        content = m.get("content")
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict):
+                    t = part.get("type", "")
+                    if t in ("image", "image_url") or part.get("image_url") or part.get("image_base64"):
+                        return True
+        elif isinstance(content, dict):
+            t = content.get("type", "")
+            if t in ("image", "image_url") or content.get("image_url") or content.get("image_base64"):
+                return True
+    return False
 
 
 def to_tool_call(obj: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -703,6 +724,15 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
             self.history_chat = [self.history_chat[0]] + self.history_chat[-15:]
         return out
 
+    async def call_vision(self, messages: List[Dict[str, Any]]) -> str:
+        if self.window and hasattr(self.window, '_get_effective_llm_config'):
+            llm = self.window._get_effective_llm_config("vision")
+        else:
+            llm = self.cfg.get("llm_vision") or self.cfg.get("llm_chat") or self.cfg.get("llm")
+        resp = await self._chat_complete_raw(llm, messages)
+        out = strip_think_and_fences(resp.get("content") or extract_msg_content(resp.get("message") or {}) or "")
+        return out
+
     async def call_tools(self, user_text: str) -> Dict[str, Any]:
         # Pin 상태 고려한 LLM 설정 사용
         if self.window and hasattr(self.window, '_get_effective_llm_config'):
@@ -864,6 +894,9 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
     def chat(self, user_text: str) -> str:
         return asyncio.run(self.call_chat(user_text))
 
+    def chat_vision(self, messages: List[Dict[str, Any]]) -> str:
+        return asyncio.run(self.call_vision(messages))
+
 
 # ---------------- Enhanced Proxy Server ----------------
 
@@ -976,6 +1009,33 @@ class ProxyServer:
             """기존 LLM 프록시 기능 유지"""
             body = await req.json()
             messages = body.get("messages") or []
+
+            if contains_image(messages):
+                created = int(time.time())
+                stream = bool(body.get("stream"))
+                out = orch.chat_vision(messages)
+                model_name = (orch.cfg.get("llm_vision") or orch.cfg.get("llm_chat") or orch.cfg.get("llm") or {}).get("model")
+                if stream:
+                    async def vision_stream():
+                        chunk = {
+                            "id": f"chatcmpl-{created}",
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model_name,
+                            "choices": [{"index": 0, "delta": {"role": "assistant", "content": out}, "finish_reason": None}]
+                        }
+                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                        yield "data: [DONE]\n\n"
+                    return StreamingResponse(vision_stream(), media_type="text/event-stream")
+                return JSONResponse({
+                    "id": f"chatcmpl-{created}",
+                    "object": "chat.completion",
+                    "created": created,
+                    "model": model_name,
+                    "choices": [{"index": 0, "message": {"role": "assistant", "content": out}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                })
+
             user_text = ""
             for m in reversed(messages):
                 if (m or {}).get("role") == "user":
@@ -1327,12 +1387,13 @@ class OverlayWindow(QtWidgets.QWidget):
                 return cfg.get("llm_chat") or cfg.get("llm_tools_chat") or cfg.get("llm", {})
             elif self.pinned_model == "20b":
                 return cfg.get("llm_summary") or cfg.get("llm_chat") or cfg.get("llm", {})
-        
+
         # Pin이 없는 경우 기본 동작
         if preferred_type == "chat":
             return cfg.get("llm_chat") or cfg.get("llm", {})
-        else:
-            return cfg.get("llm_tools") or cfg.get("llm", {})
+        if preferred_type == "vision":
+            return cfg.get("llm_vision") or cfg.get("llm_chat") or cfg.get("llm", {})
+        return cfg.get("llm_tools") or cfg.get("llm", {})
 
     def _set_pin_model(self, model: str):
         """모델 Pin 설정"""
