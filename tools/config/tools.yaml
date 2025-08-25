@@ -1,0 +1,74 @@
+# ── Prompt-Injection Guard
+- name: guard.prompt_injection_check
+  desc: "외부 텍스트/HTML에서 프롬프트 인젝션 위험 평가 및 요약"
+  input_schema:
+    text: {type: string, required: true}
+    source: {type: string, enum: ["web","file","user","other"], default: "web"}
+    url: {type: string, required: false}
+    allow_tool_use: {type: boolean, default: false}
+  output_schema:
+    risk: {type: string, enum: ["low","medium","high"]}
+    score: {type: number}
+    triggers: {type: array, items: {type: string}}
+    safe_summary: {type: string}
+
+# ── Scheduler / Reminder
+- name: sched.create
+  desc: "작업 예약 생성(일회/반복). ISO8601 또는 간단 RRULE"
+  input_schema:
+    title: {type: string, required: true}
+    run_at: {type: string, required: false}
+    interval_sec: {type: integer, required: false}
+    rrule: {type: string, required: false}
+    payload: {type: object, required: false}
+  output_schema:
+    id: {type: string}
+    next_run: {type: string}
+
+- name: sched.cancel
+  desc: "예약 취소"
+  input_schema:
+    id: {type: string, required: true}
+  output_schema:
+    ok: {type: boolean}
+
+- name: sched.list
+  desc: "예약 조회"
+  input_schema: {}
+  output_schema:
+    items: {type: array, items: {type: object}}
+
+# ── Secrets Scanner
+- name: security.secrets_scan
+  desc: "텍스트/파일에서 시크리트 토큰 패턴 탐지 및 마스킹"
+  input_schema:
+    text: {type: string, required: false}
+    file_path: {type: string, required: false}
+    mask: {type: boolean, default: true}
+  output_schema:
+    findings: {type: array, items: {type: object}}
+    masked_text: {type: string}
+
+# ── Rate Limiter (정책 조회/설정)
+- name: rate.limit
+  desc: "툴별/키별 레이트림인 정책 조회/갱신"
+  input_schema:
+    key: {type: string, required: true}
+    limit: {type: integer, required: false}
+    window_sec: {type: integer, required: false}
+    get_only: {type: boolean, default: false}
+  output_schema:
+    key: {type: string}
+    limit: {type: integer}
+    window_sec: {type: integer}
+
+# ── Approval Gate (사람 확인)
+- name: approval.gate
+  desc: "민감 작업 실행 전 사용자 승인 요청(타임아웃 포함)"
+  input_schema:
+    title: {type: string, required: true}
+    detail: {type: string, required: true}
+    timeout_sec: {type: integer, default: 45}
+  output_schema:
+    approved: {type: boolean}
+    reason: {type: string}
