@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-List registered tools + schemas from tools/config/tools.yaml
+List registered tools + schemas from Overlay/plugins/tools/config/tools.yaml
 """
 from __future__ import annotations
 import sys, json
@@ -8,17 +8,17 @@ from pathlib import Path
 
 def main():
     here = Path(__file__).resolve()
-    root = here.parents[2]  # .../home-agent
-    sys.path.insert(0, str(root))
+    root = here.parents[1]
+    sys.path.insert(0, str(root.parents[2]))
 
-    from tools.tool import HANDLERS
+    from ..tool import HANDLERS
     try:
         import yaml  # type: ignore
     except Exception:
         print(json.dumps({"ok": False, "error": "pyyaml not installed"}))
         return
 
-    cfg = root / "tools" / "config" / "tools.yaml"
+    cfg = root / "config" / "tools.yaml"
     tools = []
     if cfg.exists():
         data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or []

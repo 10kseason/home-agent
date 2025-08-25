@@ -25,12 +25,12 @@ import webbrowser
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from tools.security.orchestrator_hooks import (
+from Overlay.plugins.tools.security.orchestrator_hooks import (
     pre_ingest_external,
     before_tool,
     before_upload,
 )
-from tools.tool import HANDLERS as TOOL_HANDLERS
+from Overlay.plugins.tools.tool import HANDLERS as TOOL_HANDLERS
 
 # ---------------- logging ----------------
 try:

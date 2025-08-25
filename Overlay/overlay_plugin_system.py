@@ -18,7 +18,7 @@ from pathlib import Path
 
 # 외부 tools 폴더에서 YAML 기반 플러그인을 가져온다
 try:
-    from tools.overlay_plugin import YamlToolsPlugin
+    from Overlay.plugins.tools.overlay_plugin import YamlToolsPlugin
 except Exception:
     YamlToolsPlugin = None
 
@@ -76,8 +76,8 @@ class SecurityPlugin(BasePlugin):
     """보안 관련 기능 플러그인"""
     
     def _setup(self):
-        from tools.security.security_plugins import (
-            guard_prompt_injection_check, secrets_scan, 
+        from Overlay.plugins.tools.security.security_plugins import (
+            guard_prompt_injection_check, secrets_scan,
             RateLimiter, ApprovalGate
         )
         
@@ -96,11 +96,11 @@ class SecurityPlugin(BasePlugin):
         })
     
     def _guard_check(self, args: Dict[str, Any]):
-        from tools.security.security_plugins import guard_prompt_injection_check
+        from Overlay.plugins.tools.security.security_plugins import guard_prompt_injection_check
         return guard_prompt_injection_check(**args)
     
     def _secrets_scan(self, args: Dict[str, Any]):
-        from tools.security.security_plugins import secrets_scan
+        from Overlay.plugins.tools.security.security_plugins import secrets_scan
         return secrets_scan(**args)
     
     def _rate_limit(self, args: Dict[str, Any]):
@@ -167,7 +167,7 @@ class SchedulePlugin(BasePlugin):
     """스케줄링 관련 기능 플러그인"""
     
     def _setup(self):
-        from tools.security.security_plugins import MiniScheduler
+        from Overlay.plugins.tools.security.security_plugins import MiniScheduler
         
         self.scheduler = MiniScheduler(
             tz="Asia/Seoul", 

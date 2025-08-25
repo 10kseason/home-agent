@@ -10,8 +10,8 @@ root = here.parents[2]
 sys.path.insert(0, str(root))
 
 # Import HANDLERS and before_tool hook
-from tools.tool import HANDLERS
-from tools.security.orchestrator_hooks import before_tool
+from . import HANDLERS
+from ..security.orchestrator_hooks import before_tool
 
 class ToolRegistry:
     """YAML 스키마와 구현된 HANDLERS를 연결하는 런타임 레지스트리."""

@@ -4,7 +4,7 @@ import json, sys
 from pathlib import Path
 from . import HANDLERS as _H
 
-TOOLS_YAML = Path("tools/config/tools.yaml")
+TOOLS_YAML = Path(__file__).resolve().parents[1] / "config" / "tools.yaml"
 
 def _load_yaml_items(path: Path):
     try:
