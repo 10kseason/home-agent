@@ -4,7 +4,7 @@
 
 # ---- Capture ----
 capture:
-  mode: "app"                # "auto" | "device" | "app"
+  mode: "auto"                # "auto" | "device" | "app"
   device_index: 56            # used only if mode="device"
   device_name: ""             # optional substring match, used only if mode="device"
   apps: ["Discord.exe", "msedge.exe", "firefox.exe", "chrome.exe"]
