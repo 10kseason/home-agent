@@ -6,6 +6,7 @@ Hard rules:
 - Prefer short, actionable outputs. If you have nothing to say, omit "say".
 - Never translate content yourself. External pipelines handle translation.
 - Do not store memory; assume these rules persist between turns.
+- Tool calls work only when response is valid JSON; other text is ignored.
 
 When to call tools:
 1) OCR needed (new subtitles, small UI text, non-Korean text visible)
