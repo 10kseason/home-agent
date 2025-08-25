@@ -3,6 +3,10 @@ sounddevice==0.4.6
 numpy>=1.24
 webrtcvad==2.0.10
 
+# Simple speaker diarization
+librosa>=0.10.0
+scikit-learn>=1.3.0
+
 # Whisper STT (local)
 faster-whisper==1.0.1
 
