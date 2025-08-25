@@ -1,88 +1,22 @@
+# 로드/활성화할 플러그인 정의
+tools:
+  - name: echo
+    module: tools.tool.echo
+    class: Echo
+    enabled: true
 
-- name: agent.list_tools
-  desc: "Return implemented tool names and JSON Schemas from tools/config/tools.yaml"
-  input_schema:
-    type: object
-    properties: {}
-- name: web.fetch_lite
-  desc: "Fetch a web page (text-only, sanitized) with optional allow-list"
-  input_schema:
-    type: object
-    required: [url]
-    properties:
-      url: {type: string}
-      allowed_domains:
-        type: array
-        items: {type: string}
-      max_bytes: {type: integer, minimum: 1024, default: 400000}
-- name: guard.prompt_injection_check
-  desc: "Score text for prompt-injection patterns"
-  input_schema:
-    type: object
-    required: [text]
-    properties:
-      text: {type: string}
-      source: {type: string}
-      url: {type: string}
-      allow_tool_use: {type: boolean, default: false}
-- name: security.secrets_scan
-  desc: "Regex-based secret scanner for text or file"
-  input_schema:
-    type: object
-    properties:
-      text: {type: string}
-      file_path: {type: string}
-      mask: {type: boolean, default: true}
-- name: rate.limit
-  desc: "Get/Set per-key rate limit policy"
-  input_schema:
-    type: object
-    required: [key]
-    properties:
-      key: {type: string}
-      limit: {type: integer}
-      window_sec: {type: integer}
-      get_only: {type: boolean, default: false}
-- name: approval.gate
-  desc: "Ask human for approval with a prompt (console fallback)"
-  input_schema:
-    type: object
-    required: [title, detail]
-    properties:
-      title: {type: string}
-      detail: {type: string}
-      timeout_sec: {type: integer, default: 45}
-- name: sched.create
-  desc: "Create in-memory reminder/scheduler task"
-  input_schema:
-    type: object
-    required: [title]
-    properties:
-      title: {type: string}
-      run_at: {type: string, description: "ISO8601 (local tz)"}
-      interval_sec: {type: integer}
-      rrule: {type: string, description: "e.g., BYHOUR=9;BYMINUTE=0"}
-      payload: {type: object}
-- name: sched.cancel
-  desc: "Cancel a scheduled task by id"
-  input_schema:
-    type: object
-    required: [id]
-    properties:
-      id: {type: string}
-- name: sched.list
-  desc: "List scheduled tasks"
-  input_schema:
-    type: object
-    properties: {}
-- name: sched.persist
-  desc: "Windows Task Scheduler wrapper (schtasks)"
-  input_schema:
-    type: object
-    required: [title]
-    properties:
-      title: {type: string}
-      delete: {type: boolean, default: false}
-      time: {type: string, default: "12:00"}
-      every: {type: string, description: "DAILY|HOURLY|MINUTE:n"}
-      cmd: {type: string, default: "cmd /c echo hello-from-sched.persist"}
+  - name: file.watch
+    module: tools.tool.file_watch
+    class: FileWatch
+    enabled: true
+    # 아래는 기본값이지만 참고용
+    default_args:
+      path: "./"
+      pattern: "*.*"
+      on_event: "create"
+      interval_sec: 2
+
+  - name: mail.imap_list
+    module: tools.tool.mail_imap_list
+    class: MailImapList
+    enabled: false
