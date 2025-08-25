@@ -72,3 +72,92 @@
   output_schema:
     approved: {type: boolean}
     reason: {type: string}
+
+
+
+# ─────────────── Core utility tools (Luna set) ───────────────
+- name: agent.list_tools
+  desc: "현재 실행 가능한 툴 이름/스키마를 조회"
+  input_schema: {"type":"object"}
+
+- name: web.fetch_lite
+  desc: "화이트리스트 도메인만 GET으로 읽어와 텍스트를 반환 (간단 정제)"
+  input_schema:
+    type: object
+    properties:
+      url: {type: string}
+      allowed_domains: {type: array, items: {type: string}, default: ["wikipedia.org","docs.python.org"]}
+      max_bytes: {type: integer, default: 400000}
+    required: [url]
+
+- name: kb.ingest
+  desc: "텍스트/파일/URL을 간단 청킹하여 로컬 KB(JSONL)에 저장"
+  input_schema:
+    type: object
+    properties:
+      source: {type: string}    # 텍스트 자체 또는 파일/URL
+      is_path: {type: boolean, default: false}
+      is_url: {type: boolean, default: false}
+      tags: {type: array, items: {type: string}}
+    required: [source]
+
+- name: kb.search
+  desc: "로컬 KB에서 질의어와 단순 TF-유사도 기반으로 topK 문단 반환"
+  input_schema:
+    type: object
+    properties:
+      query: {type: string}
+      top_k: {type: integer, default: 5}
+    required: [query]
+
+- name: file.watch
+  desc: "폴더를 폴링 방식으로 감시하고 이벤트를 agent_output/watch_events.jsonl에 적재"
+  input_schema:
+    type: object
+    properties:
+      path: {type: string}
+      pattern: {type: string, default: "*.*"}
+      on_event: {type: string, enum: ["create","modify","delete"], default: "create"}
+      interval_sec: {type: integer, default: 2}
+    required: [path]
+
+- name: mail.imap_list
+  desc: "IMAP으로 최근 메일 헤더 요약(읽기 전용)"
+  input_schema:
+    type: object
+    properties:
+      host: {type: string}
+      username: {type: string}
+      password: {type: string}
+      mailbox: {type: string, default: "INBOX"}
+      search: {type: string, default: "UNSEEN"}
+      max: {type: integer, default: 20}
+    required: [host, username, password]
+
+- name: mail.smtp_send
+  desc: "SMTP로 간단한 텍스트 메일 전송"
+  input_schema:
+    type: object
+    properties:
+      host: {type: string}
+      port: {type: integer, default: 587}
+      username: {type: string}
+      password: {type: string}
+      to: {type: array, items: {type: string}}
+      subject: {type: string}
+      body: {type: string}
+      starttls: {type: boolean, default: true}
+    required: [host, username, password, to, subject, body]
+
+- name: sched.persist
+  desc: "Windows schtasks로 시스템 예약 작업 생성/삭제 (재부팅 이후에도 유지)"
+  input_schema:
+    type: object
+    properties:
+      title: {type: string}
+      time: {type: string, description: "HH:MM (로컬) 또는 'NOW' "}
+      every: {type: string, description: "DAILY|HOURLY|MINUTE:n"}
+      cmd: {type: string, description: "실행할 명령/스크립트"}
+      delete: {type: boolean, default: false}
+    required: [title]
+
