@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Deque, Dict, Any
 from collections import deque
 import base64
+from diarizer import SpeakerDiarizer
 
 import yaml
 import numpy as np
@@ -54,10 +55,11 @@ def _log(s: str):
 # Optional GUI
 try:
     import tkinter as tk
-    from tkinter import ttk
+    from tkinter import ttk, scrolledtext
 except Exception:
     tk = None
     ttk = None
+    scrolledtext = None
     print("[WARN] Tkinter not available; running in console mode.", file=sys.stderr)
 
 # STT (local)
@@ -787,8 +789,7 @@ class OverlayUI:
         self.cfg = cfg
         self.enabled = (tk is not None) and cfg.ui.enable
         self.root = None
-        self.en_var = None
-        self.ko_var = None
+        self.chat_box = None
         self.queue = queue.Queue()
 
         if self.enabled:
@@ -798,49 +799,49 @@ class OverlayUI:
             self.root.configure(bg=cfg.ui.theme_bg)
             self.root.wm_attributes("-topmost", cfg.ui.topmost)
 
-            style = {"bg": cfg.ui.theme_bg, "fg": cfg.ui.theme_fg, "font": (cfg.ui.font_family, cfg.ui.font_size_en)}
-            accent = {"bg": cfg.ui.theme_bg, "fg": cfg.ui.accent_fg, "font": (cfg.ui.font_family, cfg.ui.font_size_ko)}
-
-            self.en_var = tk.StringVar(value="(English will appear here)")
-            self.ko_var = tk.StringVar(value="(한국어 번역이 여기에 표시됩니다)")
-
-            self.en_label = tk.Label(self.root, textvariable=self.en_var, **style, anchor="w", justify="left", wraplength=cfg.ui.width-40)
-            self.en_label.pack(fill="x", padx=16, pady=(16, 8))
-
-            try:
-                ttk.Separator(self.root, orient="horizontal").pack(fill="x", padx=12, pady=6)
-            except Exception:
-                pass
-
-            self.ko_label = tk.Label(self.root, textvariable=self.ko_var, **accent, anchor="w", justify="left", wraplength=cfg.ui.width-40)
-            self.ko_label.pack(fill="x", padx=16, pady=(8, 12))
+            self.chat_box = scrolledtext.ScrolledText(
+                self.root,
+                bg=cfg.ui.theme_bg,
+                fg=cfg.ui.theme_fg,
+                font=(cfg.ui.font_family, cfg.ui.font_size_en),
+                wrap="word",
+            )
+            self.chat_box.pack(fill="both", expand=True, padx=16, pady=(16, 8))
+            self.chat_box.configure(state="disabled")
 
             btn_frame = tk.Frame(self.root, bg=cfg.ui.theme_bg)
             btn_frame.pack(fill="x", padx=12, pady=(8, 12))
             tk.Button(btn_frame, text="Clear", command=self.clear, bg="#2C333A", fg=cfg.ui.theme_fg).pack(side="left")
-            tk.Button(btn_frame, text="Quit",  command=self.root.destroy, bg="#5A1F1F", fg="#FFFFFF").pack(side="right")
+            tk.Button(btn_frame, text="Quit", command=self.root.destroy, bg="#5A1F1F", fg="#FFFFFF").pack(side="right")
 
             self.root.after(50, self._poll_queue)
 
     def _poll_queue(self):
         try:
             while True:
-                en, ko = self.queue.get_nowait()
-                if self.en_var is not None:
-                    self.en_var.set(en)
-                if self.ko_var is not None:
-                    self.ko_var.set(ko)
+                speaker, en, ko = self.queue.get_nowait()
+                if self.chat_box is not None:
+                    self.chat_box.configure(state="normal")
+                    line = en if speaker is None else f"Speaker {speaker}: {en}"
+                    if ko:
+                        line += f" / {ko}"
+                    self.chat_box.insert(tk.END, line + "\n")
+                    self.chat_box.see(tk.END)
+                    self.chat_box.configure(state="disabled")
                 print(f"[EN] {en}\n[KO] {ko}")
         except queue.Empty:
             pass
         if self.enabled and self.root:
             self.root.after(50, self._poll_queue)
 
-    def push(self, en: str, ko: str):
-        self.queue.put((en, ko))
+    def push(self, en: str, ko: str, speaker: Optional[int] = None):
+        self.queue.put((speaker, en, ko))
 
     def clear(self):
-        self.push("", "")
+        if self.chat_box is not None:
+            self.chat_box.configure(state="normal")
+            self.chat_box.delete("1.0", tk.END)
+            self.chat_box.configure(state="disabled")
 
     def loop(self):
         if self.enabled and self.root:
@@ -904,6 +905,7 @@ def run_pipeline(cfg: Config):
 
     trn = Translator(cfg)
     ui  = OverlayUI(cfg)
+    diarizer = SpeakerDiarizer()
 
     # Preview engine (optional)
     preview = None
@@ -959,7 +961,7 @@ def run_pipeline(cfg: Config):
                         except Exception:
                             en_preview = ""
                         if en_preview:
-                            ui.push(en_preview + " …", "")  # preview only English
+                            ui.push(en_preview + " …", "", None)  # preview only English
 
                 # --- VAD path (uses int16 conversion internally)
                 segment = vad.push(frame)
@@ -981,6 +983,7 @@ def run_pipeline(cfg: Config):
                         english = out.get("text","").strip()
                     except Exception as e:
                         english = f"(STT 오류: {e})"
+                    speaker_id = diarizer.assign_speaker(segment, cfg.capture.sample_rate)
                     korean = trn.translate(english) if english else ""
                     ts = time.strftime("%H:%M:%S")
                     if cfg.debug.log_segments:
@@ -988,7 +991,7 @@ def run_pipeline(cfg: Config):
                     if cfg.debug.write_wav_segments and english:
                         fname = os.path.join(seg_dir, f"{ts.replace(':','-')}_{dur_ms}ms.wav")
                         write_wav(fname, segment, cfg.capture.sample_rate)
-                    ui.push(english, korean)
+                    ui.push(english, korean, speaker_id)
                     if english:
                         _post_event("stt.text", {
                             "text": english,
@@ -1020,6 +1023,7 @@ def run_pipeline(cfg: Config):
                                 english = out.get("text","").strip()
                             except Exception as e:
                                 english = f"(STT 오류: {e})"
+                            speaker_id = diarizer.assign_speaker(segment, cfg.capture.sample_rate)
                             korean = trn.translate(english) if english else ""
                             ts = time.strftime("%H:%M:%S")
                             if cfg.debug.log_segments:
@@ -1027,7 +1031,7 @@ def run_pipeline(cfg: Config):
                             if cfg.debug.write_wav_segments and english:
                                 fname = os.path.join(seg_dir, f"{ts.replace(':','-')}_forced.wav")
                                 write_wav(fname, segment, cfg.capture.sample_rate)
-                            ui.push(english, korean)
+                            ui.push(english, korean, speaker_id)
                             if english:
                                 _post_event("stt.text", {
                                     "text": english,
@@ -1051,6 +1055,7 @@ def run_pipeline(cfg: Config):
                             english = out.get("text","").strip()
                         except Exception as e:
                             english = f"(STT 오류: {e})"
+                        speaker_id = diarizer.assign_speaker(segment, cfg.capture.sample_rate)
                         korean = trn.translate(english) if english else ""
                         ts = time.strftime("%H:%M:%S")
                         if cfg.debug.log_segments:
@@ -1058,7 +1063,7 @@ def run_pipeline(cfg: Config):
                         if cfg.debug.write_wav_segments and english:
                             fname = os.path.join(seg_dir, f"{ts.replace(':','-')}_sustained.wav")
                             write_wav(fname, segment, cfg.capture.sample_rate)
-                        ui.push(english, korean)
+                        ui.push(english, korean, speaker_id)
                         if english:
                             _post_event("stt.text", {
                                 "text": english,
