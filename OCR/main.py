@@ -108,6 +108,23 @@ DEFAULT_CONFIG = {
 }
 
 
+def _strip_think_tags(text: str) -> str:
+    """Remove <think>...</think> sections and tags."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.S | re.I)
+    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.I)
+    return cleaned.strip()
+
+
+def _extract_korean(text: str) -> str:
+    """Return only lines that contain Korean characters."""
+    if not text:
+        return ""
+    lines = [ln.strip() for ln in text.splitlines() if re.search(r"[\uac00-\ud7a3]", ln)]
+    return "\n".join(lines).strip()
+
+
 def _detect_vram_gb() -> float:
     if torch and torch.cuda.is_available():
         try:
@@ -537,9 +554,15 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def on_finished(self, ocr_text: str, translated: str):
+        # 결과 정리: think 태그 제거 및 (일반 모드 시) 한국어 부분 추출
+        ocr_clean = _strip_think_tags(ocr_text)
+        trans_clean = _strip_think_tags(translated)
+        if not self.cfg.get("fast_vlm_mode", False):
+            trans_clean = _extract_korean(trans_clean)
+
         # 결과 창/작은 팝업/중간 OCR 팝업은 전부 생략 — 토스트 + 복붙만!
         if self.cfg.get("copy_to_clipboard"):
-            QApplication.clipboard().setText((translated or ocr_text or "").strip())
+            QApplication.clipboard().setText((trans_clean or ocr_clean or "").strip())
 
         # Report which models processed the request (fast mode uses Qwen2.5-VL-7B only)
         model_info = {
@@ -549,8 +572,8 @@ class MainWindow(QMainWindow):
         _post_event(
             "ocr.text",
             {
-                "text": translated or ocr_text,
-                "ocr": ocr_text,
+                "text": trans_clean or ocr_clean,
+                "ocr": ocr_clean,
                 "source": "HomeOCR",
                 **model_info,
             },
@@ -559,7 +582,7 @@ class MainWindow(QMainWindow):
         if self.cfg.get("notify_on_finish", True):
             self._show_windows_notification(
                 "번역 완료 (클립보드 복사됨)",
-                self._build_notify_text(ocr_text, translated),
+                self._build_notify_text(ocr_clean, trans_clean),
             )
 
     def on_error(self, msg: str):

@@ -32,6 +32,14 @@ from Overlay.plugins.tools.security.orchestrator_hooks import (
 )
 from Overlay.plugins.tools.tool import HANDLERS as TOOL_HANDLERS
 
+# Supported language modes: (stt_lang, ocr_lang)
+LANG_MAP = {
+    "kr": ("ko", "Korean"),
+    "en": ("en", "English"),
+    "jp": ("ja", "Japanese"),
+    "zh": ("zh", "Chinese"),  # Simplified Chinese
+}
+
 # ---------------- logging ----------------
 try:
     from loguru import logger
@@ -995,6 +1003,15 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
                 if handler:
                     res = handler(args)
                     logger.info(f"[tool] {name} → {res}")
+                    if self.window:
+                        if name == "translation":
+                            txt = res.get("translation") if isinstance(res, dict) else str(res or "")
+                            if txt:
+                                self.window.appended.emit("🔡 Translation", txt)
+                        elif name == "tool.list":
+                            lines = res.get("tools") if isinstance(res, dict) else res
+                            msg = "\n".join(lines) if isinstance(lines, list) else str(lines)
+                            self.window.appended.emit("🛠️ Tools", msg)
                     continue
                 elif isinstance(spec, dict):
                     kind = (spec.get("kind") or "").lower()
@@ -1316,6 +1333,7 @@ class OverlayWindow(QtWidgets.QWidget):
         self.transcript = []
         self.pending_vision_images: List[Dict[str, Any]] = []
         self.pending_llm: Optional[Tuple[str, str]] = None  # (text, mode)
+        self.lang = "kr"  # current language mode (/kr,/en,/jp,/zh)
 
         # Pin 모델 관리
         self.pinned_model = None  # None, "4b", "14b", "20b"
@@ -1585,6 +1603,13 @@ class OverlayWindow(QtWidgets.QWidget):
         self.output.append(f"<span style='color:#666'>[{timestamp}]</span> <b style='color:#7FB2FF'>[{who}]</b> {safe}")
         self.transcript.append(f"[{timestamp}] [{who}] {str(msg)}")
 
+    def _set_language(self, code: str):
+        """Change global language mode"""
+        if code not in LANG_MAP:
+            return
+        self.lang = code
+        self._append("overlay", f"언어 설정: {LANG_MAP[code][1]}")
+
     # drag move
     def mousePressEvent(self, event: QtGui.QMouseEvent):
         if event.button() == QtCore.Qt.LeftButton:
@@ -1789,6 +1814,22 @@ class OverlayWindow(QtWidgets.QWidget):
 
     def _run_tool_calls_async(self, calls):
         import threading
+
+        stt_lang, ocr_lang = LANG_MAP.get(self.lang, ("ko", "Korean"))
+
+        def _prep(call):
+            if not isinstance(call, dict):
+                return call
+            name = call.get("name")
+            args = dict(call.get("args") or {})
+            if name == "stt.start":
+                args.setdefault("language", stt_lang)
+            elif name == "ocr.start":
+                args.setdefault("target_language", ocr_lang)
+            return {"name": name, "args": args}
+
+        calls = [_prep(c) for c in (calls or [])]
+
         def _w():
             try:
                 import asyncio
@@ -1844,6 +1885,9 @@ class OverlayWindow(QtWidgets.QWidget):
             return False
         toks = text.strip().split()
         cmd = toks[0].lower()
+        if cmd in ("/kr", "/en", "/jp", "/zh"):
+            self._set_language(cmd[1:])
+            return True
         if cmd in ("/help", "/도움말"):
             self._help(); return True
         if cmd in ("/대화모드", "/chat"):
