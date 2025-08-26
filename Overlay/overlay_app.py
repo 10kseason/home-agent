@@ -1415,6 +1415,105 @@ class OverlayWindow(QtWidgets.QWidget):
         self._append("overlay", "명령어는 /help 를 입력하세요.")
         self._append("overlay", "📌 모델 고정: /pin4b, /pin14b, /pin20b, /pinoff")
 
+    def _setup_routes(self):
+        app = self.app
+        orch = self.orch
+        handler = self.event_handler
+
+        @app.get("/health")
+        async def health():
+            stats = handler.get_stats()
+            return {
+                "ok": True, 
+                "who": "luna-overlay-proxy",
+                "event_stats": stats,
+                "uptime": time.time()
+            }
+
+        @app.post("/event")
+        async def receive_event(req: Request):
+            """이벤트 버스에서 오는 OCR/STT/웹검색/LLM 이벤트 수신"""
+            try:
+                body = await req.json()
+                logger.info(f"[proxy] /event received: {body}")
+                
+                event_type = body.get("type", "")
+                payload = body.get("payload", {}) or {}
+                
+                if not event_type:
+                    return JSONResponse({"error": "Missing event type"}, status_code=400)
+                
+                success = handler.handle_event(event_type, payload)
+                
+                return {
+                    "ok": success, 
+                    "message": "processed" if success else "failed",
+                    "type": event_type
+                }
+                
+            except Exception as e:
+                logger.error(f"[proxy] Error processing event: {e}")
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        # 🔥 NEW: Agent 호환 플러그인 엔드포인트 추가
+        @app.post("/plugin/event")  
+        async def plugin_event(req: Request):
+            """Agent 호환 플러그인 엔드포인트 - OCR/STT 도구용"""
+            try:
+                body = await req.json()
+                logger.info(f"[proxy] /plugin/event received: {body}")
+                
+                # Agent 스키마를 Event 스키마로 변환
+                event_type = body.get("type", "")
+                payload = body.get("payload", {}) or {}
+                priority = int(body.get("priority", 5))
+                source = body.get("source") or "plugin"
+                
+                if not event_type:
+                    return JSONResponse({"error": "Missing event type"}, status_code=400)
+                
+                # 이벤트 핸들러로 처리
+                success = handler.handle_event(event_type, payload)
+                
+                return {
+                    "ok": success, 
+                    "message": "queued" if success else "failed",
+                    "type": event_type
+                }
+                
+            except Exception as e:
+                logger.error(f"[proxy] Plugin event error: {e}")
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @app.post("/overlay/event")
+        async def overlay_specific_event(req: Request):
+            """Overlay 전용 이벤트 (토스트 등)"""
+            try:
+                body = await req.json()
+                event_type = body.get("type", "")
+                payload = body.get("payload", {}) or {}
+                
+                if not event_type:
+                    return JSONResponse({"error": "Missing event type"}, status_code=400)
+                
+                # overlay. 접두사 강제
+                if not event_type.startswith("overlay."):
+                    event_type = f"overlay.{event_type}"
+                
+                success = handler.handle_event(event_type, payload)
+                
+                return {
+                    "ok": success,
+                    "message": "processed" if success else "failed",
+                    "type": event_type
+                }
+                
+            except Exception as e:
+                logger.error(f"[overlay_event] Error: {e}")
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        # 나머지 엔드포인트들...
+
     def _ui_cfg(self):
         ui = (self.cfg.get('ui') or {}) if isinstance(self.cfg, dict) else {}
         return {
