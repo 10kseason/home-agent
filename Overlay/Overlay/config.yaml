@@ -85,15 +85,15 @@ tools:
     method: "terminate"
 
   # STT start/stop
-  stt.start:
-    kind: "process"
-    id: "stt"
-    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-    args: ["D:/jip/home-agent/STT/VSRG-Ts-to-KR.py"]
-    cwd: "D:/jip/home-agent/STT"
-    no_console: true
-    env:
-      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+    stt.start:
+      kind: "process"
+      id: "stt"
+      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+      args: ["D:/jip/home-agent/STT/VSRG-Ts-to-kr.py"]
+      cwd: "D:/jip/home-agent/STT"
+      no_console: true
+      env:
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
   stt.stop:
     kind: "process_stop"
     id: "stt"
