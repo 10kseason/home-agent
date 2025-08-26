@@ -449,6 +449,8 @@ class MainWindow(QMainWindow):
         return self._truncate(translated or ocr_text)
 
     def _show_windows_notification(self, title: str, message: str):
+        # Lunar Bridge → Overlay toast
+        _post_event("overlay.toast", {"title": title, "text": message})
         if getattr(self, "tray", None):
             try:
                 self.tray.showMessage(title, message, QSystemTrayIcon.Information, 8000)

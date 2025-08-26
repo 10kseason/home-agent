@@ -60,6 +60,18 @@ def _post_event(_type, _payload, _prio=5):
         )
     except Exception:
         pass
+    
+
+def _overlay_toast(message: str, title: str = "STT") -> None:
+    """Mirror STT results to Lunar Bridge overlay as toast messages."""
+    message = (message or "").strip()
+    if not message:
+        return
+    if len(message) > 240:
+        message = message[:239] + "…"
+    _post_event("overlay.toast", {"title": title, "text": message})
+
+
 def _log(s: str):
     print(f"[DEBUG] {s}")
 # Optional GUI
@@ -1022,6 +1034,7 @@ def run_pipeline(cfg: Config):
                                 "translate_model": cfg.translate.model,
                             },
                         )
+                        _overlay_toast(korean or english)
                     continue
 
                 # --- Forced segmentation bookkeeping (when VAD misses)
@@ -1066,6 +1079,7 @@ def run_pipeline(cfg: Config):
                                         "translate_model": cfg.translate.model,
                                     },
                                 )
+                                _overlay_toast(korean or english)
                             continue
                         force_ms = 0
 
@@ -1102,6 +1116,7 @@ def run_pipeline(cfg: Config):
                                     "translate_model": cfg.translate.model,
                                 },
                             )
+                            _overlay_toast(korean or english)
         except KeyboardInterrupt:
             print("[INFO] Interrupted.")
         finally:
