@@ -6,6 +6,32 @@
 
 ---
 
+## 🚀 설치 및 실행
+
+1. 파이썬 3.10+ 가상 환경을 준비합니다.
+2. 저장소 루트에서 의존성을 설치합니다.
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Overlay(결과 창)를 실행합니다.
+
+   ```bash
+   python Overlay/overlay_app.py
+   ```
+
+4. 음성(STT) 및 화면(OCR) 인식을 실행하면 결과가 Overlay에 자동 전송됩니다.
+
+   ```bash
+   python STT/VSRG-Ts-to-kr.py
+   python OCR/main.py
+   ```
+
+   기본 전송 주소는 `http://127.0.0.1:8350/event` 이며, `EVENT_URL` 환경변수로 변경할 수 있습니다.
+
+---
+
 ## 🖥️ 개발 및 테스트 환경
 - GPU: **RTX 4060 Ti 16GB**
 - CPU: **AMD 7800X3D**
