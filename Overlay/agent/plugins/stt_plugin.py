@@ -15,5 +15,8 @@ class STTPlugin(BasePlugin):
                 dedup.append(p)
         cleaned = " ".join(dedup)
         event.payload["text"] = cleaned
-        await self.ctx.bus.publish(event)  # translator에게 전달
-        logger.debug(f"[{self.name}] cleaned and republished stt.text")
+        # The event bus already delivers this event to downstream handlers
+        # in order. Republishing here would cause duplicate processing or
+        # even infinite loops. Simply update the payload so subsequent
+        # subscribers (e.g. translator) see the cleaned text.
+        logger.debug(f"[{self.name}] cleaned stt.text")
