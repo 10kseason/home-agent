@@ -913,60 +913,93 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
         logger.info(f"[proc] stopped {pid_name}")
         self.procs.pop(pid_name, None)
 
+    def _emit_event(self, event_type: str, payload: Dict[str, Any] | None = None,
+                    priority: int = 5, source: str | None = "overlay",
+                    url: str | None = None):
+        """Send an event to the given event endpoint.
+
+        Falls back to legacy {"name","args"} schema if the server returns
+        HTTP 422 for compatibility with older implementations.
+        """
+        import httpx
+        evt_url = url or self.cfg.get("agent", {}).get("event_url") or self.cfg.get("event_url")
+        if not evt_url:
+            logger.warning(f"[event] no event_url for {event_type}")
+            return None
+        evt_url = evt_url.rstrip("/")
+        if not evt_url.endswith("/event"):
+            evt_url += "/event"
+        body = {
+            "type": event_type,
+            "payload": payload or {},
+            "priority": priority,
+            "timestamp": time.time(),
+            "source": source,
+        }
+        try:
+            r = httpx.post(evt_url, json=body, headers={"Accept": "application/json"}, timeout=5.0)
+            if r.status_code == 422:
+                fallback = {"name": event_type, "args": payload or {}}
+                r = httpx.post(evt_url, json=fallback, headers={"Accept": "application/json"}, timeout=5.0)
+            if r.status_code >= 400:
+                logger.error(f"POST {event_type} -> {evt_url} {r.status_code}: {r.text}")
+            return r
+        except Exception as e:
+            logger.error(f"POST {event_type} -> {evt_url} failed: {e}")
+            return None
+
     async def run_tool_calls(self, tool_calls: List[Dict[str, Any]]):
         if not tool_calls:
             return
         tcfg = self.cfg.get("tools", {})
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            for call in tool_calls:
-                if not isinstance(call, dict):
+        for call in tool_calls:
+            if not isinstance(call, dict):
+                continue
+            name = (call or {}).get("name", "")
+            args = (call or {}).get("args", {}) or {}
+
+            before_tool(name, args)
+
+            if name == "overlay.open_url":
+                url = args.get("url") or args.get("href")
+                if url:
+                    try:
+                        webbrowser.open(url)
+                        logger.info(f"[tool] overlay.open_url → {url}")
+                    except Exception as e:
+                        logger.error(f"[tool] overlay.open_url failed: {e}")
+                else:
+                    logger.warning("[tool] overlay.open_url missing url")
+                continue
+
+            spec = tcfg.get(name)
+            handler = self.tool_handlers.get(name)
+            try:
+                if handler:
+                    res = handler(args)
+                    logger.info(f"[tool] {name} → {res}")
                     continue
-                name = (call or {}).get("name", "")
-                args = (call or {}).get("args", {}) or {}
-
-                before_tool(name, args)
-
-                if name == "overlay.open_url":
-                    url = args.get("url") or args.get("href")
-                    if url:
-                        try:
-                            webbrowser.open(url)
-                            logger.info(f"[tool] overlay.open_url → {url}")
-                        except Exception as e:
-                            logger.error(f"[tool] overlay.open_url failed: {e}")
+                elif isinstance(spec, dict):
+                    kind = (spec.get("kind") or "").lower()
+                    if kind == "process":
+                        self._proc_launch(name, spec, args)
+                    elif kind in ("process_stop", "stop"):
+                        merged = {**spec, **({k: v for k, v in args.items() if k in ("id","method","timeout")})}
+                        self._proc_stop(merged)
                     else:
-                        logger.warning("[tool] overlay.open_url missing url")
+                        logger.warning(f"[tool] unknown dict kind for {name}: {kind}")
                     continue
-
-                spec = tcfg.get(name)
-                handler = self.tool_handlers.get(name)
-                try:
-                    if handler:
-                        res = handler(args)
-                        logger.info(f"[tool] {name} → {res}")
-                        continue
-                    elif isinstance(spec, dict):
-                        kind = (spec.get("kind") or "").lower()
-                        if kind == "process":
-                            self._proc_launch(name, spec, args)
-                        elif kind in ("process_stop", "stop"):
-                            merged = {**spec, **({k: v for k, v in args.items() if k in ("id","method","timeout")})}
-                            self._proc_stop(merged)
-                        else:
-                            logger.warning(f"[tool] unknown dict kind for {name}: {kind}")
-                        continue
-                    if isinstance(spec, str) and spec.startswith("http"):
-                        payload = {"name": name, "args": (args or {})}
-                        await client.post(spec, json=payload)
-                        logger.info(f"[tool] {name} → {spec}")
-                    elif name == "agent.event":
-                        ev = {"type": args.get("type", "note"), "payload": args.get("payload", {}), "priority": int(args.get("priority", 5))}
-                        await client.post(self.cfg["agent"]["event_url"], json=ev)
-                        logger.info(f"[tool] agent.event → {ev['type']}")
-                    else:
-                        logger.warning(f"[tool] no mapping for {name}")
-                except Exception as e:
-                    logger.error(f"[tool] {name} failed: {e}")
+                if isinstance(spec, str) and spec.startswith("http"):
+                    self._emit_event(name, args, url=spec)
+                    logger.info(f"[tool] {name} → {spec}")
+                elif name == "agent.event":
+                    pr = int(args.get("priority", 5))
+                    self._emit_event(args.get("type", "note"), args.get("payload", {}), priority=pr, url=self.cfg["agent"]["event_url"])
+                    logger.info(f"[tool] agent.event → {args.get('type', 'note')}")
+                else:
+                    logger.warning(f"[tool] no mapping for {name}")
+            except Exception as e:
+                logger.error(f"[tool] {name} failed: {e}")
 
     # ---- sync wrappers ----
     def chat(self, user_text: str) -> str:
