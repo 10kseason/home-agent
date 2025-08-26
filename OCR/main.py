@@ -7,7 +7,7 @@ LM Studio OCR → Translation Snipping Tool
 
 모드
 - 일반 모드: OCR 모델(비전/혹은 OCR LLM) → 텍스트 추출 → 번역 모델로 번역 (2단계)
-- 고속 모드: internvl3_5-4b로 OCR 후 언어별 모델을 사용해 한국어로 번역 (2단계)
+- 고속 모드: VL 모델에 "OCR 하고, 한국어로 번역하세요" 시스템프롬프트를 넣어 한 번에 처리 (1단계)
 
 완료 시
 - 결과 창은 띄우지 않음 (요청사항)
@@ -61,11 +61,10 @@ from mss import mss
 
 # GUI / Hotkey
 from PySide6.QtCore import Qt, QRect, QPoint, Signal, QThread, QTimer
-from PySide6.QtGui import QPixmap, QIcon, QAction, QShortcut, QKeySequence
+from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
-    QGridLayout, QLineEdit, QMessageBox, QCheckBox, QComboBox, QSystemTrayIcon,
-    QMenu, QMainWindow
+    QGridLayout, QLineEdit, QMessageBox, QCheckBox, QComboBox, QMainWindow
 )
 
 # 전역 핫키 (Windows/Linux 권장, macOS는 권한 필요)
@@ -93,7 +92,7 @@ DEFAULT_CONFIG = {
     "hotkey": "ctrl+alt+o",
 
     # 알림/동작
-    "copy_to_clipboard": True,
+    "copy_to_clipboard": False,
     "notify_on_finish": True,
     "notify_content": "translation",   # translation | ocr | both
 
@@ -120,6 +119,7 @@ def load_config() -> dict:
 
 
 def save_config(cfg: dict):
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
@@ -205,30 +205,29 @@ class WorkerOCRTranslate(QThread):
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an OCR engine. Extract ALL visible text from the image. Keep original line breaks. Output plain text only.",
+                    "content": "OCR 하고, 한국어로 번역하세요",
                 },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Extract text (OCR). Return plain text only."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{b64}",
+                                "detail": "high",
+                            },
+                        }
                     ],
                 },
             ],
         }
         data = self._post_chat(payload)
-        ocr_text = ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
-
-        lang = self._detect_lang(ocr_text)
-        if lang == "en":
-            model = "kakaocorp_kanana-1.5-2.1b-instruct-2505"
-        elif lang in ("ja", "zh"):
-            model = "qwen/qwen3-4b-thinking-2507"
-        else:
-            model = self.cfg["translate_model"]
-
-        translated = self._run_translate(ocr_text, model)
-        return ocr_text, translated
+        translated = (
+            (data.get("choices") or [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        ).strip()
+        return "", translated
 
     # ---- 일반 모드: OCR → 번역 ----
     def _run_ocr(self, image_bytes: bytes) -> str:
@@ -401,9 +400,6 @@ class MainWindow(QMainWindow):
         self.overlay = SnipOverlay()
         self.overlay.regionSelected.connect(self.on_region_selected)
 
-        # 트레이 비활성화: 시스템 트레이 아이콘을 생성하지 않음
-        self.tray = None
-
         # 시그널
         self.btn_save.clicked.connect(self.on_save)
         self.btn_snip_now.clicked.connect(self.trigger_snip)
@@ -415,9 +411,12 @@ class MainWindow(QMainWindow):
         self.shortcut.activated.connect(self.trigger_snip)
 
     def _on_fast_toggled(self, checked: bool):
-        """고속 모드 토글 시 기본 OCR/번역 설정 비활성화"""
+        """고속 모드 토글 시 기본 OCR/번역 설정 비활성화 및 상태 저장"""
         self.ed_ocr_model.setEnabled(not checked)
         self.ed_trans_model.setEnabled(not checked)
+        self.cfg["fast_vlm_mode"] = checked
+        save_config(self.cfg)
+        self.register_hotkey(auto=True)
 
     # ---------- 알림 유틸 ----------
     def _truncate(self, s: str, max_len: int = 240) -> str:
@@ -435,12 +434,6 @@ class MainWindow(QMainWindow):
     def _show_windows_notification(self, title: str, message: str):
         # Lunar Bridge → Overlay toast
         _post_event("overlay.toast", {"title": title, "text": message})
-        if getattr(self, "tray", None):
-            try:
-                self.tray.showMessage(title, message, QSystemTrayIcon.Information, 8000)
-                return
-            except Exception:
-                pass
         try:
             from win10toast import ToastNotifier  # type: ignore
             ToastNotifier().show_toast(title, message, duration=8, threaded=True)
@@ -521,7 +514,7 @@ class MainWindow(QMainWindow):
 
     def on_finished(self, ocr_text: str, translated: str):
         # 결과 창/작은 팝업/중간 OCR 팝업은 전부 생략 — 토스트 + 복붙만!
-        if self.cfg.get("copy_to_clipboard", True):
+        if self.cfg.get("copy_to_clipboard"):
             QApplication.clipboard().setText((translated or ocr_text or "").strip())
 
         model_info = {
@@ -546,30 +539,6 @@ class MainWindow(QMainWindow):
 
     def on_error(self, msg: str):
         QMessageBox.critical(self, "오류", f"처리 중 오류가 발생했습니다.\n{msg}")
-
-    # 트레이 아이콘 클릭 → 창 토글
-    def on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.Trigger:
-            if self.isHidden() or not self.isActiveWindow():
-                self.showNormal()
-                self.activateWindow()
-                self.raise_()
-            else:
-                self.hide()
-
-    # X 버튼 → 트레이로 최소화
-    def closeEvent(self, event):
-        if getattr(self, "tray", None):
-            event.ignore()
-            self.hide()
-            self.tray.showMessage(
-                "백그라운드로 전환됨",
-                "트레이 아이콘에서 다시 열 수 있습니다.",
-                QSystemTrayIcon.Information,
-                3000,
-            )
-        else:
-            super().closeEvent(event)
 
 
 # -------- 엔트리 --------
