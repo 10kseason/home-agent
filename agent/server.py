@@ -48,11 +48,43 @@ async def _terminate_proc(proc, name="overlay", timeout: float = 3.0):
     except Exception as e:
         logger.debug(f"[{name}] terminate error: {e}")
 
+def _spawn_stt(cfg):
+    stt = (cfg or {}).get("stt", {}) or {}
+    if not stt.get("enable", True):
+        logger.info("[stt] disabled")
+        return None
+
+    py = stt.get("python") or sys.executable
+    script = stt.get("script")
+    if not script or not os.path.exists(script):
+        logger.warning("[stt] script not set or not found; skip auto-launch")
+        return None
+
+    cwd = stt.get("cwd") or os.path.dirname(script)
+    args = stt.get("args", []) or []
+
+    creationflags = 0
+    if platform.system() == "Windows" and stt.get("no_console", False):
+        creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+    env = os.environ.copy()
+    env.update(stt.get("env", {}) or {})
+
+    cmd = [py, script, *args]
+    try:
+        proc = subprocess.Popen(cmd, cwd=cwd, env=env, creationflags=creationflags)
+        logger.info(f"[stt] launched pid={proc.pid} cmd={cmd}")
+        return proc
+    except Exception as e:
+        logger.error(f"[stt] launch failed: {e}")
+        return None
+
 def create_app(ctx, plugins=None):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Startup
         app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
+        app.state.stt_proc = None
         try:
             # Wire plugins into the event bus
             app.state._plugin_unsubs = []
@@ -66,6 +98,20 @@ def create_app(ctx, plugins=None):
                     ctx.bus.subscribe(prefix, _handler)
                     app.state._plugin_unsubs.append((prefix, _handler))
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
+
+            async def _stt_handler(ev):
+                if ev.type == "stt.start":
+                    if app.state.stt_proc and app.state.stt_proc.poll() is None:
+                        logger.info("[stt] already running")
+                    else:
+                        app.state.stt_proc = _spawn_stt(getattr(ctx, "config", {}))
+                elif ev.type == "stt.stop":
+                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                    app.state.stt_proc = None
+
+            ctx.bus.subscribe("stt.", _stt_handler)
+            app.state._plugin_unsubs.append(("stt.", _stt_handler))
+
             # Start event bus loop
             app.state.bus_task = asyncio.create_task(ctx.bus.run())
             yield
@@ -98,6 +144,13 @@ def create_app(ctx, plugins=None):
             except Exception as e:
                 logger.debug(f"[lifespan] overlay terminate error: {e}")
             app.state.overlay_proc = None
+
+            # Shutdown STT
+            try:
+                await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+            except Exception as e:
+                logger.debug(f"[lifespan] stt terminate error: {e}")
+            app.state.stt_proc = None
 
     app = FastAPI(title="Luna Local Agent", lifespan=lifespan)
 
