@@ -8,28 +8,30 @@
 
 ## 🚀 설치 및 실행
 
-1. 파이썬 3.10+ 가상 환경을 준비합니다.
-2. 저장소 루트에서 의존성을 설치합니다.
+압축 풀고 처음 사용자용 실행 및 설치.bat를 실행합니다. LM Studio가 설치되어 있어야 하며
+OCR 폴더, Overlay 폴더, STT 폴더, Agent 폴더에서 Config 파일에 적힌
+절대경로 위치를 여러분의 컴퓨터의 절대경로 위치로 바로 잡아주시길 바랍니다.
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+📦 필요 모델 목록
+Qwen3 2507 4B
+Qwen2.5 VL 7B
+Qwen3 8B
+LFM2-VL 1.6B
+HyperClova SEED 1.5B
+GPT-OSS-20B (선택적)
+Qwen3 14B (선택적)
+LM studio에서 각 모델을 받아야 합니다.
 
-3. Overlay(결과 창)를 실행합니다.
+Whisper Tiny
+Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 있습니다.
 
-   ```bash
-   python Overlay/overlay_app.py
-   ```
+최소 필요사양
 
-4. 음성(STT) 및 화면(OCR) 인식을 실행하면 결과가 Overlay에 자동 전송됩니다.
+24GB 이상 램,
 
-   ```bash
-   python STT/VSRG-Ts-to-kr.py
-   python OCR/main.py
-   ```
+대략 50GB 이상의 공간.
 
-   기본 전송 주소는 `http://127.0.0.1:8350/event` 이며, `EVENT_URL` 환경변수로 변경할 수 있습니다.
-
+16GB 이상의 VRAM. (CUDA 에서만 동작 확인됨)
 ---
 
 ## 🖥️ 개발 및 테스트 환경
