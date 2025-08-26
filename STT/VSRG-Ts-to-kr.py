@@ -62,6 +62,15 @@ except Exception:
     scrolledtext = None
     print("[WARN] Tkinter not available; running in console mode.", file=sys.stderr)
 
+
+# 환경변수 fallback (subprocess에서 전달 안 될 때 대비)
+if not os.environ.get("AGENT_EVENT_URL"):
+    os.environ["AGENT_EVENT_URL"] = "http://127.0.0.1:8350/plugin/event"
+    print("[STT] Set fallback AGENT_EVENT_URL")
+
+print(f"[STT] Using AGENT_EVENT_URL: {os.environ.get('AGENT_EVENT_URL')}")
+
+
 # STT (local)
 try:
     from faster_whisper import WhisperModel

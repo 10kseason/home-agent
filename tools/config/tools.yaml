@@ -1,0 +1,22 @@
+# 로드/활성화할 플러그인 정의
+tools:
+  - name: echo
+    module: tools.tool.echo
+    class: Echo
+    enabled: true
+
+  - name: file.watch
+    module: tools.tool.file_watch
+    class: FileWatch
+    enabled: true
+    # 아래는 기본값이지만 참고용
+    default_args:
+      path: "./"
+      pattern: "*.*"
+      on_event: "create"
+      interval_sec: 2
+
+  - name: mail.imap_list
+    module: tools.tool.mail_imap_list
+    class: MailImapList
+    enabled: false
