@@ -517,8 +517,13 @@ class EnhancedProxyServer:
         logger.info(f"[proxy] Enhanced server started at http://{self.host}:{self.port}")
 
     def stop(self):
+        """Gracefully stop the enhanced uvicorn server."""
         if self._server:
             self._server.should_exit = True
+            if self._thread:
+                self._thread.join(timeout=5)
+            self._server = None
+            self._thread = None
 
 # ============================================================================
 # Enhanced Overlay Window
@@ -558,9 +563,18 @@ class EnhancedOverlayWindow(QtWidgets.QWidget):
 
         # 시그널 연결
         self.appended.connect(self._append)
-        
+
         self._append("overlay", "Ready v10 - Enhanced Plugin System")
         self._append("plugins", f"Loaded: {', '.join(self.orch.plugin_manager.plugins.keys())}")
+
+    def closeEvent(self, event: QtGui.QCloseEvent):
+        """Ensure the proxy server shuts down with the overlay."""
+        try:
+            if getattr(self, "proxy", None):
+                self.proxy.stop()
+        except Exception:
+            pass
+        super().closeEvent(event)
         
     def _init_ui(self):
         """UI 초기화"""
