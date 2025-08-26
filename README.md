@@ -8,13 +8,14 @@
 
 ## 🚀 설치 및 실행
 
-압축 풀고 처음 사용자용 실행 및 설치.bat를 실행합니다. LM Studio가 설치되어 있어야 하며
-OCR 폴더, Overlay 폴더, STT 폴더, Agent 폴더에서 Config 파일에 적힌
-절대경로 위치를 여러분의 컴퓨터의 절대경로 위치로 바로 잡아주시길 바랍니다.
+압축을 풀고 `처음 사용자용 실행 및 설치.bat`를 실행합니다. LM Studio가 설치되어 있어야 하며
+**OCR/`config.json`, STT/`config.yaml`, Overlay/`config.yaml`, agent/`config.yaml` 등 각 폴더의 설정 파일에 기재된 모델·파일 경로는 PC마다 모두 다릅니다. 반드시 자신의 절대경로로 수정하세요.**
+**하드웨어 사양에 따라 모델 종류나 옵션을 바꿔 써도 무방합니다.**
 
 📦 필요 모델 목록
+opengvlab_internvl3_5-8b
+opengvlab_internvl3_5-4b (고속 OCR)
 Qwen3 2507 4B
-Qwen2.5 VL 7B
 Qwen3 8B
 GPT-OSS-20B (선택적)
 Qwen3 14B (선택적)
@@ -50,16 +51,16 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 
 ### OCR 파이프라인
 - **LM Studio**에서 4B 종료 후:  
-  - `Qwen2.5 VL 7B` : OCR 인식  
-  - 종료 후 `Qwen3 8B` : 한국어 번역  
-  - 결과 Overlay에 표시  
-- **고속 모드**:  
-  - `LFM2-VL 1.6B` : OCR  
-  - `HyperClova SEED 1.5B` : 번역  
+  - `opengvlab_internvl3_5-8b` : OCR 인식
+  - 종료 후 `Qwen3 8B` : 한국어 번역
+  - 결과 Overlay에 표시
+- **고속 모드**:
+  - `opengvlab_internvl3_5-4b` : OCR
+  - `kakaocorp_kanana-1.5-2.1b-instruct-2505` : 번역
 
 ### STT 파이프라인
-- `Whisper Tiny / Faster` : 음성 전사 (BBC 뉴스도 인식 가능)  
-- `HyperClova SEED 1.5B` : 전사 결과물 한국어 번역  
+- `Whisper Tiny / Faster` : 음성 전사 (BBC 뉴스도 인식 가능)
+- `opengvlab_internvl3_5-8b` : 전사 결과물 한국어 번역
 - 결과는 Overlay 및 `VSRG-Ts-to-KR.py (STT)` 창에 표시, **화자 분리 지원**  
 
 ### 오케스트레이션 순환
@@ -76,10 +77,11 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 
 ## 📦 필요 모델 목록
 - **Qwen3 2507 4B**
-- **Qwen2.5 VL 7B**
+- **opengvlab_internvl3_5-8b**
 - **Qwen3 8B**
 - **GPT-OSS-20B** (선택적)
 - **Qwen3 14B** (선택적)
+- **opengvlab_internvl3_5-4b** (고속 OCR)
 - **Whisper Tiny**
 - **Whisper Faster**
 
