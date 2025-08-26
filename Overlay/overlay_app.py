@@ -646,13 +646,15 @@ class Orchestrator:
 
         # OCR
         if ("ocr" in low or "자막" in ut) and any(k in ut for k in ("켜","켜줘","start","시작","시작해")):
-            return [{"name":"ocr.start","args":{}}]
+            # 기본 힌트는 subtitle로 전달하여 Tool Memory 지침을 따름
+            return [{"name": "ocr.start", "args": {"hint": "subtitle"}}]
         if ("ocr" in low or "자막" in ut) and any(k in ut for k in ("꺼","꺼줘","stop","중지","종료","멈춰")):
             return [{"name":"ocr.stop","args":{}}]
 
         # STT
         if "stt" in low and any(k in ut for k in ("켜","켜줘","start","시작","시작해")):
-            return [{"name":"stt.start","args":{}}]
+            # 실시간 모드로 시작하도록 명시
+            return [{"name": "stt.start", "args": {"mode": "realtime"}}]
         if "stt" in low and any(k in ut for k in ("꺼","꺼줘","stop","중지","종료","멈춰")):
             return [{"name":"stt.stop","args":{}}]
 
