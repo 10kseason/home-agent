@@ -10,6 +10,11 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
     "%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade pip
     "%VENV_DIR%\Scripts\python.exe" -m pip install -r requirements.txt
 )
+set SETTINGS_SCRIPT=%~dp0Gui_settings.py
+set /p MODIFY_SETTINGS="설정을 수정하시겠습니까? (Y/N): "
+if /I "%MODIFY_SETTINGS%"=="Y" (
+    "%VENV_DIR%\Scripts\python.exe" "%SETTINGS_SCRIPT%"
+)
 
 echo Starting application...
 "%VENV_DIR%\Scripts\python.exe" -m agent.main

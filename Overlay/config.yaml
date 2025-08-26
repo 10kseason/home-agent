@@ -73,9 +73,9 @@ tools:
   ocr.start:
     kind: "process"
     id: "ocr"
-    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-    args: ["D:/jip/home-agent/OCR/main.py"]
-    cwd: "D:/jip/home-agent/OCR"
+    command: ".venv/Scripts/python.exe"
+    args: ["OCR/main.py"]
+    cwd: "OCR"
     no_console: true
     env:
       AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
@@ -88,9 +88,9 @@ tools:
   stt.start:
     kind: "process"
     id: "stt"
-    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-    args: ["D:/jip/home-agent/STT/VSRG-Ts-to-kr.py"]
-    cwd: "D:/jip/home-agent/STT"
+    command: ".venv/Scripts/python.exe"
+    args: ["STT/VSRG-Ts-to-kr.py"]
+    cwd: "STT"
     no_console: true
     shell: true
     env:
@@ -104,13 +104,13 @@ tools:
   web.search:
     kind: "process"
     id: "web"
-    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-    args: ["D:/jip/home-agent/Overlay/plugins/web_search.py",
+    command: ".venv/Scripts/python.exe"
+    args: ["Overlay/plugins/web_search.py",
            "--query", "{q}",
            "--topk", "{k}",
            "--summarize",
            "--post"]
-    cwd: "D:/jip/home-agent/Overlay/plugins"
+    cwd: "Overlay/plugins"
     no_console: false
     env:
       # ✅ Enhanced Web Search 환경변수
