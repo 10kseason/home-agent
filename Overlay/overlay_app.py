@@ -965,6 +965,18 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
 
             before_tool(name, args)
 
+            if name == "agent.list_tools":
+                try:
+                    if self.window and hasattr(self.window, "_show_tools"):
+                        self.window._show_tools()
+                    else:
+                        handler = self.tool_handlers.get(name)
+                        if handler:
+                            handler(args)
+                except Exception as e:
+                    logger.error(f"[tool] agent.list_tools failed: {e}")
+                continue
+
             if name == "overlay.open_url":
                 url = args.get("url") or args.get("href")
                 if url:
