@@ -1671,6 +1671,11 @@ class OverlayWindow(QtWidgets.QWidget):
         self.pin_active = True
         self._update_title()
         self._append("overlay", f"📌 모델 고정: {model.upper()}")
+        # Pin 변경 시 tool_memory 재적용
+        try:
+            self.orch.reload_memory()
+        except Exception:
+            pass
 
     def _clear_pin(self):
         """Pin 해제"""
@@ -1679,6 +1684,11 @@ class OverlayWindow(QtWidgets.QWidget):
         self.pin_active = False
         self._update_title()
         self._append("overlay", f"📌 해제: {old_model.upper() if old_model else 'None'}")
+        # Pin 해제 후에도 tool_memory 재적용
+        try:
+            self.orch.reload_memory()
+        except Exception:
+            pass
 
     def _status_line(self) -> str:
         cfg = self.orch.cfg
@@ -1859,7 +1869,19 @@ class OverlayWindow(QtWidgets.QWidget):
             enable = toks[1].lower() in ("on", "true", "1")
             self.event_handler.set_debug_mode(enable)
             self._append("overlay", f"디버그 모드 {'활성화' if enable else '비활성화'}"); return True
-        
+
+        if cmd == "/exit":
+            self._append("overlay", "종료합니다.")
+            try:
+                if hasattr(self, "proxy") and self.proxy:
+                    self.proxy.stop()
+                if hasattr(self, "health") and self.health:
+                    self.health.stop()
+            except Exception:
+                pass
+            QtWidgets.QApplication.quit()
+            return True
+
         # Pin 관련 명령어들
         if cmd == "/pin4b":
             self._set_pin_model("4b"); return True
