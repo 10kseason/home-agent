@@ -25,6 +25,8 @@ class TranslatorPlugin(BasePlugin):
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.2,
+            "reasoning": {"effort": "none"},
+            "max_tokens": 4096,
         }
 
         timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)

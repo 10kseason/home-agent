@@ -175,6 +175,7 @@ def approval_gate(args: Dict[str, Any]):
 def agent_list_tools(args: Dict[str, Any]):
     cfg = ROOT / "tools" / "config" / "tools.yaml"
     items: List[Dict[str, Any]] = []
+    schemas: List[Dict[str, Any]] = []
     if cfg.exists():
         try:
             import yaml  # type: ignore
@@ -186,18 +187,25 @@ def agent_list_tools(args: Dict[str, Any]):
                 nm = it.get("name")
                 if not nm:
                     continue
+                desc = it.get("desc", "")
                 params = it.get("input_schema") or {"type": "object", "properties": {}}
                 items.append({
                     "type": "function",
                     "function": {
                         "name": nm,
-                        "description": it.get("desc", ""),
-                        "parameters": params
-                    }
+                        "description": desc,
+                        "parameters": params,
+                    },
                 })
+                schemas.append({"name": nm, "desc": desc, "parameters": params})
         except Exception as e:
             return {"ok": False, "error": f"yaml_parse_failed: {e}"}
-    return {"ok": True, "tools": items, "implemented": sorted(list(HANDLERS.keys()))}
+    return {
+        "ok": True,
+        "tools": items,
+        "schemas": schemas,
+        "implemented": sorted(list(HANDLERS.keys())),
+    }
 
 # ---------- web.fetch_lite ----------
 @register("web.fetch_lite")

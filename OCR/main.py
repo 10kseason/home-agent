@@ -63,6 +63,10 @@ try:
     import torch
 except Exception:
     torch = None
+try:
+    import pytesseract
+except Exception:
+    pytesseract = None
 
 # GUI / Hotkey
 from PySide6.QtCore import Qt, QRect, QPoint, Signal, QThread, QTimer
@@ -87,7 +91,8 @@ DEFAULT_CONFIG = {
 
     # 모델
     "ocr_model": "qwen/qwen2.5-vl-7b",
-    "translate_model": "qwen/qwen2.5-7b",
+    # Second-stage translation model (Qwen3 8B, 4-bit, 4k context)
+    "translate_model": "qwen/qwen3-8b-instruct",
 
     # 고속 모드: Qwen2.5-VL-7B 한 번 호출로 OCR+번역 처리
     "fast_vlm_mode": False,
@@ -233,39 +238,6 @@ class WorkerOCRTranslate(QThread):
         return resp.json()
 
     # ---- 고속 모드: Qwen2.5-VL-7B 한 번 호출로 OCR+한국어 번역 ----
-    def _run_fast_vlm(self, image_bytes: bytes) -> tuple[str, str]:
-        """Use Qwen2.5-VL-7B to read text and translate it to Korean in one step."""
-        b64 = base64.b64encode(image_bytes).decode("ascii")
-        payload = {
-            "model": "qwen/qwen2.5-vl-7b",
-            "temperature": 0,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "OCR 하고, 한국어로 번역하세요",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{b64}",
-                                "detail": "high",
-                            },
-                        }
-                    ],
-                },
-            ],
-        }
-        data = self._post_chat(payload)
-        translated = (
-            (data.get("choices") or [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        ).strip()
-        return "", translated
-
     # ---- 일반 모드: OCR → 번역 ----
     def _run_ocr(self, image_bytes: bytes) -> str:
         b64 = base64.b64encode(image_bytes).decode("ascii")
@@ -290,6 +262,12 @@ class WorkerOCRTranslate(QThread):
         data = self._post_chat(payload)
         return ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
 
+    def _run_tesseract(self, image_bytes: bytes) -> str:
+        if pytesseract is None:
+            raise RuntimeError("pytesseract not installed")
+        img = Image.open(io.BytesIO(image_bytes))
+        return pytesseract.image_to_string(img, lang="eng+kor+jpn+chi_sim").strip()
+
     def _run_translate(self, text: str, model_name: str | None = None) -> str:
         model_name = model_name or self.cfg["translate_model"]
         target = self.cfg["target_language"]
@@ -305,6 +283,8 @@ class WorkerOCRTranslate(QThread):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user},
             ],
+            "reasoning": {"effort": "none"},
+            "max_tokens": 4096,
         }
         data = self._post_chat(payload)
         return ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
@@ -319,7 +299,8 @@ class WorkerOCRTranslate(QThread):
     def run(self):
         try:
             if self.cfg.get("fast_vlm_mode", False):
-                ocr_text, translated = self._run_fast_vlm(self.image_bytes)
+                ocr_text = self._run_tesseract(self.image_bytes)
+                translated = self._run_translate(ocr_text)
             else:
                 ocr_text = self._run_ocr(self.image_bytes)
                 translated = self._run_translate(ocr_text)
@@ -348,7 +329,11 @@ class MainWindow(QMainWindow):
         self.ed_key.setEchoMode(QLineEdit.Password)
         self.ed_ocr_model = QLineEdit(self.cfg["ocr_model"])
         self.ed_trans_model = QLineEdit(self.cfg["translate_model"])
-        self.ed_target_lang = QLineEdit(self.cfg["target_language"])
+        self.cb_target_lang = QComboBox()
+        self.cb_target_lang.addItems(["Korean", "English", "Japanese", "Chinese"])
+        idx = self.cb_target_lang.findText(self.cfg["target_language"])
+        if idx >= 0:
+            self.cb_target_lang.setCurrentIndex(idx)
         self.ed_hotkey = QLineEdit(self.cfg["hotkey"])
 
         # 고속 모드
@@ -397,7 +382,7 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.ed_trans_model, r, 1)
         r += 1
         grid.addWidget(QLabel("타겟 언어"), r, 0)
-        grid.addWidget(self.ed_target_lang, r, 1)
+        grid.addWidget(self.cb_target_lang, r, 1)
         r += 1
         grid.addWidget(QLabel("전역 핫키"), r, 0)
         grid.addWidget(self.ed_hotkey, r, 1)
@@ -455,7 +440,7 @@ class MainWindow(QMainWindow):
             checked = True
             self.chk_fast.setChecked(True)
         self.ed_ocr_model.setEnabled(not checked)
-        self.ed_trans_model.setEnabled(not checked)
+        self.ed_trans_model.setEnabled(True)
         self.cfg["fast_vlm_mode"] = checked
         save_config(self.cfg)
         self.register_hotkey(auto=True)
@@ -489,7 +474,7 @@ class MainWindow(QMainWindow):
         self.cfg["api_key"] = self.ed_key.text().strip() or "lm-studio"
         self.cfg["ocr_model"] = self.ed_ocr_model.text().strip()
         self.cfg["translate_model"] = self.ed_trans_model.text().strip()
-        self.cfg["target_language"] = self.ed_target_lang.text().strip() or "Korean"
+        self.cfg["target_language"] = self.cb_target_lang.currentText() or "Korean"
         self.cfg["hotkey"] = self.ed_hotkey.text().strip() or "ctrl+alt+o"
 
         self.cfg["fast_vlm_mode"] = self.chk_fast.isChecked()
