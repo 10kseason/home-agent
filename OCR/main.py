@@ -401,31 +401,8 @@ class MainWindow(QMainWindow):
         self.overlay = SnipOverlay()
         self.overlay.regionSelected.connect(self.on_region_selected)
 
-        # 트레이
-        if QSystemTrayIcon.isSystemTrayAvailable():
-            icon = QIcon.fromTheme("camera")
-            if icon.isNull():
-                pix = QPixmap(32, 32)
-                pix.fill(Qt.transparent)
-                icon = QIcon(pix)
-            self.tray = QSystemTrayIcon(icon, self)
-            menu = QMenu()
-            act_show = QAction("열기", self)
-            act_show.triggered.connect(self.showNormal)
-            act_snip = QAction("캡처", self)
-            act_snip.triggered.connect(self.trigger_snip)
-            act_quit = QAction("종료", self)
-            act_quit.triggered.connect(QApplication.instance().quit)
-            menu.addAction(act_show)
-            menu.addAction(act_snip)
-            menu.addSeparator()
-            menu.addAction(act_quit)
-            self.tray.setContextMenu(menu)
-            self.tray.setToolTip("LM Studio OCR → Translation")
-            self.tray.activated.connect(self.on_tray_activated)
-            self.tray.show()
-        else:
-            self.tray = None
+        # 트레이 비활성화: 시스템 트레이 아이콘을 생성하지 않음
+        self.tray = None
 
         # 시그널
         self.btn_save.clicked.connect(self.on_save)

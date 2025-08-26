@@ -37,16 +37,20 @@ def list_tools_from_yaml() -> List[Dict[str, Any]]:
     cfg = Path(__file__).resolve().parents[1] / "config" / "tools.yaml"
     out: List[Dict[str, Any]] = []
     if cfg.exists():
-        data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or []
-        for it in data:
+        data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+        items = data.get("tools") if isinstance(data, dict) else data
+        for it in (items or []):
+            if not isinstance(it, dict):
+                continue
             nm = it.get("name")
-            if not nm: continue
+            if not nm:
+                continue
             out.append({
                 "type": "function",
                 "function": {
                     "name": nm,
                     "description": it.get("desc", ""),
-                    "parameters": it.get("input_schema", {"type":"object","properties":{}})
+                    "parameters": it.get("input_schema", {"type": "object", "properties": {}})
                 }
             })
     return out

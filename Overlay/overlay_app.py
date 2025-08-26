@@ -1726,26 +1726,29 @@ class OverlayWindow(QtWidgets.QWidget):
         self._append('overlay', "\n".join(msg))
 
     def _show_tools(self):
-        names = set()
         try:
-            names.update((self.orch.cfg.get('tools') or {}).keys())
             handler = TOOL_HANDLERS.get('agent.list_tools')
-            if handler:
-                res = handler({})
-                if isinstance(res, dict):
-                    names.update(res.get('implemented') or [])
-                    for item in res.get('tools', []):
-                        fn = (item.get('function') or {}).get('name')
-                        if fn:
-                            names.add(fn)
+            res = handler({}) if handler else {}
         except Exception as e:
             self._append('error', f'agent.list_tools failed: {e}')
             return
-        if not names:
+        schemas = (res or {}).get('schemas') or []
+        if not schemas:
             self._append('overlay', '사용 가능한 툴이 없습니다.')
             return
-        msg = ['사용 가능한 툴:'] + [f'  - {n}' for n in sorted(names)]
-        self._append('overlay', "\n".join(msg))
+        lines = ['사용 가능한 툴:']
+        names = []
+        for it in schemas:
+            nm = it.get('name')
+            if not nm:
+                continue
+            desc = it.get('desc', '')
+            props = (it.get('parameters') or {}).get('properties', {})
+            example = {k: f'<{k}>' for k in props.keys()}
+            call = json.dumps({'name': nm, 'args': example}, ensure_ascii=False)
+            lines.append(f'  - {nm}: {desc} | {call}')
+            names.append(nm)
+        self._append('overlay', "\n".join(lines))
         try:
             base, _, _ = read_tool_memory().partition("\nAvailable tools:\n")
             new_mem = base.rstrip() + "\n\nAvailable tools:\n" + "\n".join(f"- {n}" for n in sorted(names)) + "\n"

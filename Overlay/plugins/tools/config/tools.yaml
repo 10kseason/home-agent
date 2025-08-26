@@ -20,3 +20,29 @@ tools:
     module: Overlay.plugins.tools.tool.mail_imap_list
     class: MailImapList
     enabled: false
+
+  - name: ocr
+    module: Overlay.plugins.tools.tool.ocr
+    class: OCR
+    enabled: true
+    desc: "이미지에서 텍스트를 추출"
+    input_schema:
+      type: object
+      properties:
+        image_path:
+          type: string
+          description: "이미지 파일 경로"
+      required: [image_path]
+
+  - name: stt
+    module: Overlay.plugins.tools.tool.stt
+    class: STT
+    enabled: true
+    desc: "오디오에서 텍스트로 변환"
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "오디오 파일 경로"
+      required: [audio_path]

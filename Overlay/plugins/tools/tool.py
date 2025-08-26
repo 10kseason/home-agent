@@ -169,16 +169,20 @@ def agent_list_tools(args: Dict[str, Any]):
     if cfg.exists():
         try:
             import yaml  # type: ignore
-            data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
-            for it in (data or []):
+            data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+            raw_items = data.get("tools") if isinstance(data, dict) else data
+            for it in (raw_items or []):
+                if not isinstance(it, dict):
+                    continue
                 nm = it.get("name")
-                if not nm: continue
-                params = it.get("input_schema") or {"type":"object","properties":{}}
+                if not nm:
+                    continue
+                params = it.get("input_schema") or {"type": "object", "properties": {}}
                 items.append({
                     "type": "function",
                     "function": {
                         "name": nm,
-                        "description": it.get("desc",""),
+                        "description": it.get("desc", ""),
                         "parameters": params
                     }
                 })
