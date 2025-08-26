@@ -22,7 +22,7 @@ import platform
 import datetime
 import base64
 import webbrowser
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Overlay.plugins.tools.security.orchestrator_hooks import (
@@ -912,6 +912,11 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
                 logger.error(f"[proc] stop error for {pid_name}: {e}")
         logger.info(f"[proc] stopped {pid_name}")
         self.procs.pop(pid_name, None)
+        if self.window and hasattr(self.window, "_on_tool_stopped"):
+            try:
+                self.window._on_tool_stopped(pid_name)
+            except Exception as e:
+                logger.error(f"[proc] callback error for {pid_name}: {e}")
 
     def _emit_event(self, event_type: str, payload: Dict[str, Any] | None = None,
                     priority: int = 5, source: str | None = "overlay",
@@ -1293,6 +1298,7 @@ class OverlayWindow(QtWidgets.QWidget):
         self.mode = "tools"
         self.transcript = []
         self.pending_vision_images: List[Dict[str, Any]] = []
+        self.pending_llm: Optional[Tuple[str, str]] = None  # (text, mode)
 
         # Pin 모델 관리
         self.pinned_model = None  # None, "4b", "14b", "20b"
@@ -1533,6 +1539,28 @@ class OverlayWindow(QtWidgets.QWidget):
             self.show()
             self.raise_()
             self.activateWindow()
+
+    def _ocr_stt_running(self) -> bool:
+        for key in ("ocr", "stt"):
+            proc = self.orch.procs.get(key)
+            if proc and proc.poll() is None:
+                return True
+        return False
+
+    def _on_tool_stopped(self, name: str):
+        if name not in ("ocr", "stt"):
+            return
+        if not self._ocr_stt_running() and self.pending_llm:
+            text, mode = self.pending_llm
+            self.pending_llm = None
+            try:
+                self.cfg = load_cfg()
+                self.orch.cfg = self.cfg
+            except Exception as e:
+                self._append("error", f"config reload failed: {e}")
+            self._append("overlay", "대기중이던 요청을 처리합니다.")
+            self._append("you", text)
+            self._send_to_llm(text, mode)
 
     def _append(self, who: str, msg: str):
         safe = str(msg).replace("<", "&lt;").replace(">", "&gt;")
@@ -1902,6 +1930,51 @@ class OverlayWindow(QtWidgets.QWidget):
             px = self.cfg.get("proxy", {}); self._append("overlay", f"http://{px.get('host','127.0.0.1')}:{int(px.get('port',8350))}/v1/chat/completions"); return True
         self._append("error", "알 수 없는 명령어. /help 를 확인하세요."); return True
 
+    def _send_to_llm(self, msg: str, mode: str):
+        def worker(msg=msg, mode=mode):
+            try:
+                t0 = time.time()
+                if mode == "chat":
+                    self.appended.emit("overlay", "↗ LLM(chat) 요청")
+                    out = self.orch.chat(msg)
+                    out = strip_think_and_fences(out)
+                    dt = int((time.time()-t0)*1000)
+                    self.appended.emit("overlay", f"↙ LLM(chat) 응답 ({dt}ms)")
+                    self.appended.emit("llm-14B", out or "(empty)")
+                    self.appended.emit("overlay", "↗ LLM(tools) 요청")
+                    parsed = self.orch.orchestrate(msg)
+                    say = strip_think_and_fences(parsed.get("say") or "")
+                    tcs = parsed.get("tool_calls") or []
+                    if not say and tcs:
+                        say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
+                    dt2 = int((time.time()-t0)*1000)
+                    self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt2}ms)")
+                    self.appended.emit("llm-4B", say or "(no text; tools only)")
+                    if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
+                        raw = self.orch.last_tools_raw
+                        if len(raw) > 4000:
+                            raw = raw[:4000] + " ... (truncated)"
+                        self.appended.emit("debug", f"raw: {raw}")
+                else:
+                    self.appended.emit("overlay", "↗ LLM(tools) 요청")
+                    parsed = self.orch.orchestrate(msg)
+                    say = strip_think_and_fences(parsed.get("say") or "")
+                    tcs = parsed.get("tool_calls") or []
+                    if not say and tcs:
+                        say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
+                    dt = int((time.time()-t0)*1000)
+                    self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt}ms)")
+                    self.appended.emit("llm-4B", say or "(no text; tools only)")
+                    if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
+                        raw = self.orch.last_tools_raw
+                        if len(raw) > 4000:
+                            raw = raw[:4000] + " ... (truncated)"
+                        self.appended.emit("debug", f"raw: {raw}")
+            except Exception as e:
+                self.appended.emit("error", str(e))
+                logger.exception("overlay worker error")
+        threading.Thread(target=worker, daemon=True).start()
+
     @QtCore.pyqtSlot()
     def on_send(self):
         text = self.input.text().strip()
@@ -1909,6 +1982,11 @@ class OverlayWindow(QtWidgets.QWidget):
             return
         self.input.clear()
         if text and self._try_slash(text):
+            return
+        if self._ocr_stt_running():
+            if text:
+                self.pending_llm = (text, self.mode)
+            self._append("overlay", "VRAM 16GB 내에서 실행하기 위해 OCR툴, STT 툴이 꺼졌을 때 다시 응답을 받습니다.")
             return
 
         if self.mode == "vision":
@@ -1922,60 +2000,18 @@ class OverlayWindow(QtWidgets.QWidget):
             messages = [{"role": "user", "content": parts}]
             self.pending_vision_images = []
 
-            def worker(messages=messages):
+            def vworker(messages=messages):
                 try:
                     out = self.orch.chat_vision(messages)
                     self.appended.emit("vision", strip_think_and_fences(out))
                 except Exception as e:
                     self.appended.emit("error", f"vision failed: {e}")
-            threading.Thread(target=worker, daemon=True).start()
+            threading.Thread(target=vworker, daemon=True).start()
             return
 
         if text:
             self._append("you", text)
-
-            def worker(msg=text, mode=self.mode):
-                try:
-                    t0 = time.time()
-                    if mode == "chat":
-                        self.appended.emit("overlay", "↗ LLM(chat) 요청")
-                        out = self.orch.chat(msg)
-                        out = strip_think_and_fences(out)
-                        dt = int((time.time()-t0)*1000)
-                        self.appended.emit("overlay", f"↙ LLM(chat) 응답 ({dt}ms)")
-                        self.appended.emit("llm-14B", out or "(empty)")
-                        # also try tools (optional)
-                        self.appended.emit("overlay", "↗ LLM(tools) 요청")
-                        parsed = self.orch.orchestrate(msg)
-                        say = strip_think_and_fences(parsed.get("say") or "")
-                        tcs = parsed.get("tool_calls") or []
-                        if not say and tcs:
-                            say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
-                        dt2 = int((time.time()-t0)*1000)
-                        self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt2}ms)")
-                        self.appended.emit("llm-4B", say or "(no text; tools only)")
-                        if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
-                            raw = self.orch.last_tools_raw
-                            if len(raw) > 4000: raw = raw[:4000] + " ... (truncated)"
-                            self.appended.emit("debug", f"raw: {raw}")
-                    else:
-                        self.appended.emit("overlay", "↗ LLM(tools) 요청")
-                        parsed = self.orch.orchestrate(msg)
-                        say = strip_think_and_fences(parsed.get("say") or "")
-                        tcs = parsed.get("tool_calls") or []
-                        if not say and tcs:
-                            say = "(tools) " + ", ".join((c or {}).get("name","?") for c in tcs if isinstance(c, dict))
-                        dt = int((time.time()-t0)*1000)
-                        self.appended.emit("overlay", f"↙ LLM(tools) 응답 ({dt}ms)")
-                        self.appended.emit("llm-4B", say or "(no text; tools only)")
-                        if bool((self.cfg.get("debug") or {}).get("overlay_echo_raw", False)) and getattr(self.orch, "last_tools_raw", ""):
-                            raw = self.orch.last_tools_raw
-                            if len(raw) > 4000: raw = raw[:4000] + " ... (truncated)"
-                            self.appended.emit("debug", f"raw: {raw}")
-                except Exception as e:
-                    self.appended.emit("error", str(e))
-                    logger.exception("overlay worker error")
-            threading.Thread(target=worker, daemon=True).start()
+            self._send_to_llm(text, self.mode)
 
     def on_image(self):
         """이미지 파일을 선택해 비전 모델로 전송"""
