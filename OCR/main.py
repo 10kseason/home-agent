@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
 LM Studio OCR → Translation Snipping Tool
 -----------------------------------------
 핫키로 영역 캡처 → LM Studio로 보내 OCR 및 번역.
 
 모드
 - 일반 모드: OCR 모델(비전/혹은 OCR LLM) → 텍스트 추출 → 번역 모델로 번역 (2단계)
-- 고속 모드: opengvlab_internvl3_5-4b로 OCR 후 언어별 모델을 사용해 한국어로 번역 (2단계)
+- 고속 모드: internvl3_5-4b로 OCR 후 언어별 모델을 사용해 한국어로 번역 (2단계)
 
 완료 시
 - 결과 창은 띄우지 않음 (요청사항)
@@ -81,12 +82,12 @@ DEFAULT_CONFIG = {
     "api_key": "lm-studio",
 
     # 모델
-    "ocr_model": "qwen/qwen2.5-vl-7b",
-    "translate_model": "qwen/qwen2.5-vl-7b",
+    "ocr_model": "qwen2.5-vl",
+    "translate_model": "qwen2.5-7b",
 
     # 고속 모드
     "fast_vlm_mode": False,
-    "fast_vlm_model": "opengvlab_internvl3_5-4b",
+    "fast_vlm_model": "opengvlab/opengvlab_internvl3_5-4b",
 
     "target_language": "Korean",
     "hotkey": "ctrl+alt+o",
@@ -194,10 +195,10 @@ class WorkerOCRTranslate(QThread):
         resp.raise_for_status()
         return resp.json()
 
-    # ---- 고속 모드: opengvlab_internvl3_5-4b OCR 후 언어별 번역 ----
+    # ---- 고속 모드: internvl3_5-4b OCR 후 언어별 번역 ----
     def _run_fast_vlm(self, image_bytes: bytes) -> tuple[str, str]:
         b64 = base64.b64encode(image_bytes).decode("ascii")
-        model_name = self.cfg.get("fast_vlm_model") or "opengvlab_internvl3_5-4b"
+        model_name = self.cfg.get("fast_vlm_model") or "lfm2-vl-1.6b"
         payload = {
             "model": model_name,
             "temperature": 0,
@@ -313,7 +314,7 @@ class MainWindow(QMainWindow):
         self.chk_fast = QCheckBox("고속 OCR 모드")
         self.chk_fast.setChecked(self.cfg.get("fast_vlm_mode", False))
         self.ed_fast_model = QLineEdit(self.cfg.get("fast_vlm_model", ""))
-        self.ed_fast_model.setPlaceholderText("예: opengvlab_internvl3_5-4b")
+        self.ed_fast_model.setPlaceholderText("예: lfm2-vl-1.6b")
         self.chk_fast.toggled.connect(self._on_fast_toggled)
         self._on_fast_toggled(self.chk_fast.isChecked())
 
