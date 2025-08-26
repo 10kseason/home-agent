@@ -16,8 +16,6 @@ OCR 폴더, Overlay 폴더, STT 폴더, Agent 폴더에서 Config 파일에 적�
 Qwen3 2507 4B
 Qwen2.5 VL 7B
 Qwen3 8B
-LFM2-VL 1.6B
-HyperClova SEED 1.5B
 GPT-OSS-20B (선택적)
 Qwen3 14B (선택적)
 LM studio에서 각 모델을 받아야 합니다.
@@ -80,8 +78,6 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 - **Qwen3 2507 4B**
 - **Qwen2.5 VL 7B**
 - **Qwen3 8B**
-- **LFM2-VL 1.6B**
-- **HyperClova SEED 1.5B**
 - **GPT-OSS-20B** (선택적)
 - **Qwen3 14B** (선택적)
 - **Whisper Tiny**
@@ -90,9 +86,47 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 ---
 
 ## 🔑 라이선스
-- MIT License
-- 자유롭게 개조 및 사용 가능  
-- 단, **원본 GitHub 저장소 출처를 반드시 표기**해주세요  
+- GPL-3.0 License
+- 이 저장소의 코드는 GPLv3로 배포됩니다.
+- 이 프로젝트는 모델(가중치)을 포함하지 않습니다. 사용자는 각 모델의 라이선스 조건을 확인 후 직접 다운로드해야 합니다.
+- "오픈소스" 표기는 코드에 한정되며, 모델은 각 저작권자/라이선스를 따릅니다.
+- 단, **원본 GitHub 저장소 출처를 반드시 표기**해주세요
+
+### 📚 의존 라이브러리 라이선스
+아래는 `requirements.txt`에 명시된 주요 라이브러리와 그 라이선스입니다. 대부분은 GPLv3와 호환되지만, **PyQt5는 GPLv3**입니다.
+
+| 라이브러리 | 라이선스 |
+|------------|----------|
+| fastapi | MIT |
+| uvicorn | BSD-3-Clause |
+| pydantic | MIT |
+| httpx | BSD-3-Clause |
+| requests | Apache-2.0 |
+| PyYAML | MIT |
+| loguru | MIT |
+| PyQt5 | GPLv3 |
+| PySide6 | LGPL-3.0 |
+| pillow | HPND (PIL) |
+| mss | MIT |
+| keyboard | MIT |
+| sounddevice | MIT |
+| soundfile | BSD-3-Clause |
+| soundcard | BSD-3-Clause |
+| numpy | BSD-3-Clause |
+| scipy | BSD-3-Clause |
+| webrtcvad | MIT |
+| faster-whisper | MIT |
+| librosa | ISC |
+| scikit-learn | BSD-3-Clause |
+| pycaw | MIT |
+| comtypes | MIT |
+| duckduckgo-search | MIT |
+| beautifulsoup4 | MIT |
+| lxml | BSD-3-Clause |
+
+이외 윈도우 전용 알림 라이브러리(win10toast, winotify)는 모두 MIT 라이선스로 배포됩니다.
+
+**GPLv3 준수:** PyQt5는 GPLv3이므로 프로젝트 전체는 GPL 조항을 따릅니다. 나머지 라이브러리는 GPLv3와 호환되어 자유롭게 사용할 수 있습니다.
 
 ---
 
