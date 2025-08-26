@@ -544,11 +544,20 @@ class MainWindow(QMainWindow):
         # 결과 창/작은 팝업/중간 OCR 팝업은 전부 생략 — 토스트 + 복붙만!
         if self.cfg.get("copy_to_clipboard", True):
             QApplication.clipboard().setText((translated or ocr_text or "").strip())
-            _post_event("ocr.text", {
-            "text": translated or ocr_text,
-            "ocr": ocr_text,
-            "source": "HomeOCR",
-        })
+
+        model_info = {
+            "ocr_model": self.cfg.get("fast_vlm_model") if self.cfg.get("fast_vlm_mode", False) else self.cfg.get("ocr_model"),
+            "translate_model": self.cfg.get("translate_model"),
+        }
+        _post_event(
+            "ocr.text",
+            {
+                "text": translated or ocr_text,
+                "ocr": ocr_text,
+                "source": "HomeOCR",
+                **model_info,
+            },
+        )
 
         if self.cfg.get("notify_on_finish", True):
             self._show_windows_notification(

@@ -864,12 +864,18 @@ def run_pipeline(cfg: Config):
                     if cfg.debug.write_wav_segments and english:
                         fname = os.path.join(seg_dir, f"{ts.replace(':','-')}_{dur_ms}ms.wav")
                         write_wav(fname, segment, cfg.capture.sample_rate)
-                        ui.push(english, korean)
-                        _post_event("stt.text", {
-                        "text": english,
-                        "translation": korean,
-                        "source": "VSRG",
-                        })
+                    ui.push(english, korean)
+                    if english:
+                        _post_event(
+                            "stt.text",
+                            {
+                                "text": english,
+                                "translation": korean,
+                                "source": "VSRG",
+                                "stt_model": cfg.stt.model,
+                                "translate_model": cfg.translate.model,
+                            },
+                        )
                     continue
 
                 # --- Forced segmentation bookkeeping (when VAD misses)
@@ -901,12 +907,18 @@ def run_pipeline(cfg: Config):
                             if cfg.debug.write_wav_segments and english:
                                 fname = os.path.join(seg_dir, f"{ts.replace(':','-')}_forced.wav")
                                 write_wav(fname, segment, cfg.capture.sample_rate)
-                                ui.push(english, korean)
-                                _post_event("stt.text", {
-                                "text": english,
-                                "translation": korean,
-                                "source": "VSRG/forced",
-                                 })
+                            ui.push(english, korean)
+                            if english:
+                                _post_event(
+                                    "stt.text",
+                                    {
+                                        "text": english,
+                                        "translation": korean,
+                                        "source": "VSRG/forced",
+                                        "stt_model": cfg.stt.model,
+                                        "translate_model": cfg.translate.model,
+                                    },
+                                )
                             continue
                         force_ms = 0
 
@@ -931,6 +943,17 @@ def run_pipeline(cfg: Config):
                             fname = os.path.join(seg_dir, f"{ts.replace(':','-')}_sustained.wav")
                             write_wav(fname, segment, cfg.capture.sample_rate)
                         ui.push(english, korean)
+                        if english:
+                            _post_event(
+                                "stt.text",
+                                {
+                                    "text": english,
+                                    "translation": korean,
+                                    "source": "VSRG/sustained",
+                                    "stt_model": cfg.stt.model,
+                                    "translate_model": cfg.translate.model,
+                                },
+                            )
 
         except KeyboardInterrupt:
             print("[INFO] Interrupted.")
