@@ -1012,12 +1012,16 @@ def run_pipeline(cfg: Config):
                         write_wav(fname, segment, cfg.capture.sample_rate)
                     ui.push(english, korean, speaker_id)
                     if english:
-                        _post_event("stt.text", {
-                            "text": english,
-                            "translation": korean,
-                            "source": "VSRG",
-                            "model": cfg.stt.model,
-                        })
+                        _post_event(
+                            "stt.text",
+                            {
+                                "text": english,
+                                "translation": korean,
+                                "source": "VSRG",
+                                "stt_model": cfg.stt.model,
+                                "translate_model": cfg.translate.model,
+                            },
+                        )
                     continue
 
                 # --- Forced segmentation bookkeeping (when VAD misses)
@@ -1052,12 +1056,16 @@ def run_pipeline(cfg: Config):
                                 write_wav(fname, segment, cfg.capture.sample_rate)
                             ui.push(english, korean, speaker_id)
                             if english:
-                                _post_event("stt.text", {
-                                    "text": english,
-                                    "translation": korean,
-                                    "source": "VSRG/forced",
-                                    "model": cfg.stt.model,
-                                })
+                                _post_event(
+                                    "stt.text",
+                                    {
+                                        "text": english,
+                                        "translation": korean,
+                                        "source": "VSRG/forced",
+                                        "stt_model": cfg.stt.model,
+                                        "translate_model": cfg.translate.model,
+                                    },
+                                )
                             continue
                         force_ms = 0
 
@@ -1084,12 +1092,16 @@ def run_pipeline(cfg: Config):
                             write_wav(fname, segment, cfg.capture.sample_rate)
                         ui.push(english, korean, speaker_id)
                         if english:
-                            _post_event("stt.text", {
-                                "text": english,
-                                "translation": korean,
-                                "source": "VSRG/sustained",
-                                "model": cfg.stt.model,
-                            })
+                            _post_event(
+                                "stt.text",
+                                {
+                                    "text": english,
+                                    "translation": korean,
+                                    "source": "VSRG/sustained",
+                                    "stt_model": cfg.stt.model,
+                                    "translate_model": cfg.translate.model,
+                                },
+                            )
         except KeyboardInterrupt:
             print("[INFO] Interrupted.")
         finally:
