@@ -9,11 +9,13 @@ TOOLS_YAML = Path(__file__).resolve().parents[1] / "config" / "tools.yaml"
 def _load_yaml_items(path: Path):
     try:
         import yaml
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
+        items = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(items, dict):
+            items = items.get("tools") or []
+        return items
     except Exception:
         # ultra-light fallback: name만 파싱
         items = []
-        cur = None
         for ln in path.read_text(encoding="utf-8", errors="ignore").splitlines():
             s = ln.strip()
             if s.startswith("- name:"):
@@ -23,18 +25,31 @@ def _load_yaml_items(path: Path):
 
 def agent_list_tools(_args):
     schemas = []
+    tools = []
     if TOOLS_YAML.exists():
         items = _load_yaml_items(TOOLS_YAML) or []
         for it in items:
+            if not isinstance(it, dict):
+                continue
             nm = it.get("name")
             if nm in _H:
+                desc = it.get("desc", "")
+                params = it.get("input_schema") or {"type": "object", "properties": {}}
                 schemas.append({
                     "name": nm,
-                    "desc": it.get("desc",""),
-                    "parameters": it.get("input_schema", {"type":"object"})
+                    "desc": desc,
+                    "parameters": params,
+                })
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": nm,
+                        "description": desc,
+                        "parameters": params,
+                    },
                 })
     names = sorted(list(_H.keys()))
-    return {"implemented": names, "schemas": schemas}
+    return {"implemented": names, "schemas": schemas, "tools": tools}
 
 TOOL_HANDLERS = {"agent.list_tools": agent_list_tools}
 
