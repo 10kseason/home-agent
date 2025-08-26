@@ -16,7 +16,7 @@ llm_chat:     # 14B (기본 채팅)
 
 llm_vision:   # 이미지가 포함된 대화용
   endpoint: "http://127.0.0.1:1234/v1"
-  model: "gemma-3-12b-it-qat"
+  model: "qwen/qwen2.5-vl-7b"
   api_key: "lm-studio"
   timeout_seconds: 60
   max_new_tokens: 8096
