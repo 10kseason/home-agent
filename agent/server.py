@@ -66,6 +66,8 @@ def create_app(ctx, plugins=None):
                     ctx.bus.subscribe(prefix, _handler)
                     app.state._plugin_unsubs.append((prefix, _handler))
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
+            # Start event bus loop
+            app.state.bus_task = asyncio.create_task(ctx.bus.run())
             yield
         finally:
             # Unsubscribe plugins
@@ -78,6 +80,18 @@ def create_app(ctx, plugins=None):
                 app.state._plugin_unsubs = []
             except Exception:
                 pass
+            # Stop event bus loop
+            try:
+                bus_task = getattr(app.state, "bus_task", None)
+                if bus_task:
+                    bus_task.cancel()
+                    try:
+                        await bus_task
+                    except Exception:
+                        pass
+                app.state.bus_task = None
+            except Exception as e:
+                logger.debug(f"[lifespan] bus task cancel error: {e}")
             # Shutdown overlay
             try:
                 await _terminate_proc(getattr(app.state, "overlay_proc", None), name="overlay", timeout=3.0)
