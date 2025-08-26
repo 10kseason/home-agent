@@ -37,17 +37,27 @@ import requests
 import soundfile as sf
 # ---- Luna Agent bridge (공통) ----
 import requests as _rq
-_AGENT_URL = os.environ.get("AGENT_EVENT_URL", "http://127.0.0.1:8765/plugin/event")
-_AGENT_KEY = os.environ.get("AGENT_EVENT_KEY")
+# 이벤트 전송 URL: Overlay에 직접 보내거나 Agent를 거쳐 전달
+_EVENT_URL = (
+    os.environ.get("EVENT_URL")
+    or os.environ.get("AGENT_EVENT_URL")
+    or os.environ.get("OVERLAY_EVENT_URL")
+    or "http://127.0.0.1:8350/event"
+)
+_EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
 def _post_event(_type, _payload, _prio=5):
+    """Send event to overlay or agent bus."""
     try:
-        headers = {'Content-Type': 'application/json'}
-        if _AGENT_KEY:
-            headers['X-Agent-Key'] = _AGENT_KEY
-        _rq.post(_AGENT_URL, json={
-            'type': _type, 'payload': _payload, 'priority': _prio
-        }, headers=headers, timeout=3)
+        headers = {"Content-Type": "application/json"}
+        if _EVENT_KEY:
+            headers["X-Agent-Key"] = _EVENT_KEY
+        _rq.post(
+            _EVENT_URL,
+            json={"type": _type, "payload": _payload, "priority": _prio},
+            headers=headers,
+            timeout=3,
+        )
     except Exception:
         pass
 def _log(s: str):
@@ -64,11 +74,11 @@ except Exception:
 
 
 # 환경변수 fallback (subprocess에서 전달 안 될 때 대비)
-if not os.environ.get("AGENT_EVENT_URL"):
-    os.environ["AGENT_EVENT_URL"] = "http://127.0.0.1:8350/plugin/event"
-    print("[STT] Set fallback AGENT_EVENT_URL")
+if not os.environ.get("EVENT_URL") and not os.environ.get("AGENT_EVENT_URL"):
+    os.environ["EVENT_URL"] = "http://127.0.0.1:8350/event"
+    print("[STT] Set fallback EVENT_URL")
 
-print(f"[STT] Using AGENT_EVENT_URL: {os.environ.get('AGENT_EVENT_URL')}")
+print(f"[STT] Using EVENT_URL: {os.environ.get('EVENT_URL') or _EVENT_URL}")
 
 
 # STT (local)
