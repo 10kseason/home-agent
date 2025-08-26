@@ -58,6 +58,11 @@ def _post_event(_type, _payload, _prio=5):
 import requests
 from PIL import Image
 from mss import mss
+import psutil
+try:
+    import torch
+except Exception:
+    torch = None
 
 # GUI / Hotkey
 from PySide6.QtCore import Qt, QRect, QPoint, Signal, QThread, QTimer
@@ -101,6 +106,22 @@ DEFAULT_CONFIG = {
     "show_result_popup": False,        # 작은 팝업 표시 안 함
     "popup_content": "translation"
 }
+
+
+def _detect_vram_gb() -> float:
+    if torch and torch.cuda.is_available():
+        try:
+            return torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        except Exception:
+            return 0.0
+    return 0.0
+
+
+def _detect_ram_gb() -> float:
+    try:
+        return psutil.virtual_memory().total / (1024 ** 3)
+    except Exception:
+        return 0.0
 
 
 def load_config() -> dict:
@@ -295,6 +316,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.cfg = load_config()
+        vram = _detect_vram_gb()
+        ram = _detect_ram_gb()
+        self._force_fast = vram <= 12 and ram <= 24 and vram > 0 and ram > 0
+        if self._force_fast:
+            self.cfg["fast_vlm_mode"] = True
         self.setWindowTitle("LM Studio OCR → Translation")
         self.setMinimumWidth(780)
         self._notified_hide = False
@@ -312,6 +338,7 @@ class MainWindow(QMainWindow):
         # Fast mode uses Qwen2.5-VL-7B for single-shot OCR+translation
         self.chk_fast = QCheckBox("고속 OCR 모드")
         self.chk_fast.setChecked(self.cfg.get("fast_vlm_mode", False))
+        self.chk_fast.setEnabled(not self._force_fast)
         self.chk_fast.toggled.connect(self._on_fast_toggled)
         self._on_fast_toggled(self.chk_fast.isChecked())
 
@@ -407,6 +434,9 @@ class MainWindow(QMainWindow):
 
     def _on_fast_toggled(self, checked: bool):
         """고속 모드 토글 시 기본 OCR/번역 설정 비활성화 및 상태 저장"""
+        if getattr(self, "_force_fast", False) and not checked:
+            checked = True
+            self.chk_fast.setChecked(True)
         self.ed_ocr_model.setEnabled(not checked)
         self.ed_trans_model.setEnabled(not checked)
         self.cfg["fast_vlm_mode"] = checked
