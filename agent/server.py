@@ -85,6 +85,20 @@ def create_app(ctx, plugins=None):
         # Startup
         app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
         app.state.stt_proc = None
+        # Watch overlay process so the agent exits when overlay closes
+        if app.state.overlay_proc:
+            async def _overlay_watch():
+                proc = app.state.overlay_proc
+                try:
+                    await asyncio.to_thread(proc.wait)
+                    logger.info("[overlay] exited; shutting down agent server")
+                    import os, signal
+                    os.kill(os.getpid(), signal.SIGINT)
+                except Exception as e:
+                    logger.debug(f"[overlay] watch error: {e}")
+            app.state._overlay_watch = asyncio.create_task(_overlay_watch())
+        else:
+            app.state._overlay_watch = None
         try:
             # Wire plugins into the event bus
             app.state._plugin_unsubs = []
@@ -124,6 +138,18 @@ def create_app(ctx, plugins=None):
                     except Exception:
                         pass
                 app.state._plugin_unsubs = []
+            except Exception:
+                pass
+            # Stop overlay watcher
+            try:
+                watch = getattr(app.state, "_overlay_watch", None)
+                if watch:
+                    watch.cancel()
+                    try:
+                        await watch
+                    except Exception:
+                        pass
+                app.state._overlay_watch = None
             except Exception:
                 pass
             # Stop event bus loop

@@ -372,16 +372,21 @@ class EnhancedOrchestrator(PluginAwareOrchestrator):
     
     async def call_tools(self, user_text: str) -> Dict[str, Any]:
         """도구 호출 (플러그인 우선)"""
+        lower = user_text.strip().lower()
+        # 사용자가 도구 목록을 요청하는 경우 명시적으로 처리
+        if any(k in lower for k in ["tool list", "list tools", "툴 목록", "도구 목록"]):
+            return {"say": "", "tool_calls": [{"name": "agent.list_tools", "args": {}}]}
+
         # 기존 LLM 기반 도구 호출
         llm_result = await super().call_tools_llm(user_text) if hasattr(super(), 'call_tools_llm') else {}
-        
+
         # 플러그인에서 직접 도구 호출 가능한지 확인
         plugin_tools = self._try_plugin_direct_tools(user_text)
-        
+
         # 결합
         tool_calls = plugin_tools + llm_result.get("tool_calls", [])
         say = llm_result.get("say", "")
-        
+
         return {"say": say, "tool_calls": tool_calls}
     
     def _try_plugin_direct_tools(self, user_text: str) -> List[Dict[str, Any]]:
@@ -628,10 +633,12 @@ class EnhancedOverlayWindow(QtWidgets.QWidget):
         if cmd in ("/help", "/도움말"):
             self._help_enhanced()
             return True
-            
+
         # ... 기존 명령어 처리 ...
-        
-        return False
+
+        # 알 수 없는 명령어 안내
+        self._append("overlay", "알 수 없는 명령어. /help 를 입력하세요.")
+        return True
     
     def _help_enhanced(self):
         """향상된 도움말 (플러그인 명령어 포함)"""
