@@ -81,8 +81,8 @@ DEFAULT_CONFIG = {
     "api_key": "lm-studio",
 
     # 모델
-    "ocr_model": "opengvlab_internvl3_5-8b",
-    "translate_model": "opengvlab_internvl3_5-8b",
+    "ocr_model": "qwen/qwen2.5-vl-7b",
+    "translate_model": "qwen/qwen2.5-vl-7b",
 
     # 고속 모드
     "fast_vlm_mode": False,
