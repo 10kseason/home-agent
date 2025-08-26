@@ -78,7 +78,7 @@ tools:
     cwd: "D:/jip/home-agent/OCR"
     no_console: true
     env:
-      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/plugin/event"
   ocr.stop:
     kind: "process_stop"
     id: "ocr"
@@ -93,7 +93,7 @@ tools:
       cwd: "D:/jip/home-agent/STT"
       no_console: true
       env:
-        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/plugin/event"
   stt.stop:
     kind: "process_stop"
     id: "stt"
