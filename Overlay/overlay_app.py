@@ -1285,8 +1285,13 @@ class ProxyServer:
         self.connection_test_done = True
 
     def stop(self):
+        """Stop the internal uvicorn server when the overlay exits."""
         if self._server:
             self._server.should_exit = True
+            if self._thread:
+                self._thread.join(timeout=5)
+            self._server = None
+            self._thread = None
 
 # ---------------- Overlay Window ----------------
 # Defaults for UI
@@ -1601,6 +1606,7 @@ class OverlayWindow(QtWidgets.QWidget):
         super().mouseReleaseEvent(event)
 
     def closeEvent(self, event: QtGui.QCloseEvent):
+        """Stop auxiliary servers when the overlay window is closed."""
         try:
             if hasattr(self, "health") and self.health:
                 self.health.stop()

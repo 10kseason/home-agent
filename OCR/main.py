@@ -7,7 +7,7 @@ LM Studio OCR → Translation Snipping Tool
 
 모드
 - 일반 모드: OCR 모델(비전/혹은 OCR LLM) → 텍스트 추출 → 번역 모델로 번역 (2단계)
-- 고속 모드: VL 모델에 "OCR 하고, 한국어로 번역하세요" 시스템프롬프트를 넣어 한 번에 처리 (1단계)
+- 고속 모드: **Qwen2.5-VL-7B**에 "OCR 하고, 한국어로 번역하세요" 시스템프롬프트를 넣어 한 번에 처리 (1단계)
 
 완료 시
 - 결과 창은 띄우지 않음 (요청사항)
@@ -81,12 +81,11 @@ DEFAULT_CONFIG = {
     "api_key": "lm-studio",
 
     # 모델
-    "ocr_model": "qwen2.5-vl",
-    "translate_model": "qwen2.5-7b",
+    "ocr_model": "qwen/qwen2.5-vl-7b",
+    "translate_model": "qwen/qwen2.5-7b",
 
-    # 고속 모드
+    # 고속 모드: Qwen2.5-VL-7B 한 번 호출로 OCR+번역 처리
     "fast_vlm_mode": False,
-    "fast_vlm_model": "opengvlab/opengvlab_internvl3_5-4b",
 
     "target_language": "Korean",
     "hotkey": "ctrl+alt+o",
@@ -195,12 +194,12 @@ class WorkerOCRTranslate(QThread):
         resp.raise_for_status()
         return resp.json()
 
-    # ---- 고속 모드: internvl3_5-4b OCR 후 언어별 번역 ----
+    # ---- 고속 모드: Qwen2.5-VL-7B 한 번 호출로 OCR+한국어 번역 ----
     def _run_fast_vlm(self, image_bytes: bytes) -> tuple[str, str]:
+        """Use Qwen2.5-VL-7B to read text and translate it to Korean in one step."""
         b64 = base64.b64encode(image_bytes).decode("ascii")
-        model_name = self.cfg.get("fast_vlm_model") or "lfm2-vl-1.6b"
         payload = {
-            "model": model_name,
+            "model": "qwen/qwen2.5-vl-7b",
             "temperature": 0,
             "messages": [
                 {
@@ -310,10 +309,9 @@ class MainWindow(QMainWindow):
         self.ed_hotkey = QLineEdit(self.cfg["hotkey"])
 
         # 고속 모드
+        # Fast mode uses Qwen2.5-VL-7B for single-shot OCR+translation
         self.chk_fast = QCheckBox("고속 OCR 모드")
         self.chk_fast.setChecked(self.cfg.get("fast_vlm_mode", False))
-        self.ed_fast_model = QLineEdit(self.cfg.get("fast_vlm_model", ""))
-        self.ed_fast_model.setPlaceholderText("예: lfm2-vl-1.6b")
         self.chk_fast.toggled.connect(self._on_fast_toggled)
         self._on_fast_toggled(self.chk_fast.isChecked())
 
@@ -362,9 +360,6 @@ class MainWindow(QMainWindow):
         r += 1
 
         grid.addWidget(self.chk_fast, r, 0, 1, 2)
-        r += 1
-        grid.addWidget(QLabel("고속 모드용 OCR 모델"), r, 0)
-        grid.addWidget(self.ed_fast_model, r, 1)
         r += 1
 
         grid.addWidget(self.chk_copy, r, 0, 1, 2)
@@ -451,7 +446,6 @@ class MainWindow(QMainWindow):
         self.cfg["hotkey"] = self.ed_hotkey.text().strip() or "ctrl+alt+o"
 
         self.cfg["fast_vlm_mode"] = self.chk_fast.isChecked()
-        self.cfg["fast_vlm_model"] = self.ed_fast_model.text().strip()
 
         self.cfg["copy_to_clipboard"] = self.chk_copy.isChecked()
         self.cfg["notify_on_finish"] = self.chk_notify.isChecked()
@@ -517,8 +511,9 @@ class MainWindow(QMainWindow):
         if self.cfg.get("copy_to_clipboard"):
             QApplication.clipboard().setText((translated or ocr_text or "").strip())
 
+        # Report which models processed the request (fast mode uses Qwen2.5-VL-7B only)
         model_info = {
-            "ocr_model": self.cfg.get("fast_vlm_model") if self.cfg.get("fast_vlm_mode", False) else self.cfg.get("ocr_model"),
+            "ocr_model": "qwen/qwen2.5-vl-7b" if self.cfg.get("fast_vlm_mode", False) else self.cfg.get("ocr_model"),
             "translate_model": self.cfg.get("translate_model"),
         }
         _post_event(

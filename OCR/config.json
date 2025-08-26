@@ -4,7 +4,6 @@
   "ocr_model": "qwen/qwen2.5-vl-7b",
   "translate_model": "qwen/qwen3-8b",
   "fast_vlm_mode": false,
-  "fast_vlm_model": "opengvlab/opengvlab_internvl3_5-4b",
   "target_language": "Korean",
   "hotkey": "ctrl+alt+o",
   "copy_to_clipboard": true,
