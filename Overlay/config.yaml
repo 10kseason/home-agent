@@ -31,7 +31,7 @@ llm_summary:  # 20B (정확 요약/검색; 환각 적게)
   temperature: 0.1
 
 router:
-  enable: true
+  enable: false
   mode: "both"
   chat_triggers:
     - "(?i)\\bweather\\b"
@@ -78,7 +78,7 @@ tools:
     cwd: "D:/jip/home-agent/OCR"
     no_console: true
     env:
-      AGENT_EVENT_URL: "http://127.0.0.1:8350/plugin/event"
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
   ocr.stop:
     kind: "process_stop"
     id: "ocr"
@@ -94,7 +94,7 @@ tools:
     no_console: true
     shell: true
     env:
-      AGENT_EVENT_URL: "http://127.0.0.1:8350/plugin/event"
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
   stt.stop:
     kind: "process_stop"
     id: "stt"
