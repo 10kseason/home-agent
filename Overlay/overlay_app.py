@@ -953,6 +953,41 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
             logger.error(f"POST {event_type} -> {evt_url} failed: {e}")
             return None
 
+    def _emit_event(self, event_type: str, payload: Dict[str, Any] | None = None,
+                    priority: int = 5, source: str | None = "overlay",
+                    url: str | None = None):
+        """Send an event to the given event endpoint.
+
+        Falls back to legacy {"name","args"} schema if the server returns
+        HTTP 422 for compatibility with older implementations.
+        """
+        import httpx
+        evt_url = url or self.cfg.get("agent", {}).get("event_url") or self.cfg.get("event_url")
+        if not evt_url:
+            logger.warning(f"[event] no event_url for {event_type}")
+            return None
+        evt_url = evt_url.rstrip("/")
+        if not evt_url.endswith("/event"):
+            evt_url += "/event"
+        body = {
+            "type": event_type,
+            "payload": payload or {},
+            "priority": priority,
+            "timestamp": time.time(),
+            "source": source,
+        }
+        try:
+            r = httpx.post(evt_url, json=body, headers={"Accept": "application/json"}, timeout=5.0)
+            if r.status_code == 422:
+                fallback = {"name": event_type, "args": payload or {}}
+                r = httpx.post(evt_url, json=fallback, headers={"Accept": "application/json"}, timeout=5.0)
+            if r.status_code >= 400:
+                logger.error(f"POST {event_type} -> {evt_url} {r.status_code}: {r.text}")
+            return r
+        except Exception as e:
+            logger.error(f"POST {event_type} -> {evt_url} failed: {e}")
+            return None
+
     async def run_tool_calls(self, tool_calls: List[Dict[str, Any]]):
         if not tool_calls:
             return
