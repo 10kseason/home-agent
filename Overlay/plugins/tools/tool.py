@@ -8,15 +8,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Callable, Tuple
 import httpx
 
-# --- simple <think> tag remover (translation tool uses) ---
-THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
-
-def _strip_think(text: str) -> str:
-    """Remove <think> blocks from text"""
-    if not text:
-        return ""
-    return THINK_RE.sub("", text)
-
 # ---------- registry ----------
 HANDLERS: Dict[str, Callable[[Dict[str, Any]], Any]] = {}
 
@@ -270,57 +261,10 @@ def lang_detect(args: Dict[str, Any]):
     needs = bool(target) and (lang.lower() != target)
     return {"ok": True, "language": lang, "needs_translation": needs}
 
-# ---------- translation (LLM-based) ----------
-@register("translation")
-def translation_tool(args: Dict[str, Any]):
-    text = (args.get("text") or "").strip()
-    target = (args.get("target") or args.get("to") or "ko").strip()
-    if not text:
-        return {"ok": False, "error": "missing text"}
-
-    endpoint = model = api_key = ""
-    try:  # load from agent/config.yaml if available
-        import yaml  # type: ignore
-        cfg = yaml.safe_load((ROOT / "agent" / "config.yaml").read_text(encoding="utf-8")) or {}
-        trans = cfg.get("translate") or {}
-        endpoint = trans.get("endpoint") or ""
-        model = trans.get("model") or ""
-        api_key = trans.get("api_key") or ""
-    except Exception:
-        pass
-    endpoint = os.environ.get("TRANSLATE_ENDPOINT", endpoint)
-    model = os.environ.get("TRANSLATE_MODEL", model)
-    api_key = os.environ.get("TRANSLATE_API_KEY", api_key)
-    if not endpoint or not model:
-        return {"ok": False, "error": "translate_not_configured"}
-
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    prompt = f"Translate to {target}. If already in {target}, return original. Text:\n{text}"
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "You are a helpful translator."},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.2,
-    }
-    try:
-        timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)
-        r = httpx.post(f"{endpoint}/chat/completions", headers=headers, json=payload, timeout=timeout)
-        r.raise_for_status()
-        data = r.json()
-        translated = _strip_think((data.get("choices", [{}])[0].get("message", {}).get("content") or "").strip())
-        return {"ok": True, "translation": translated}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
 # ---------- tool.list (static list in Korean) ----------
 @register("tool.list")
 def tool_list(args: Dict[str, Any]):
     items = [
-        "Translation – 주어진 문장을 지정한 언어로 번역합니다.",
         "Lang Detect – 텍스트의 언어(한국어/영어/일본어/중국어)를 추정합니다.",
         "DDG Search – DuckDuckGo를 사용하여 안전하게 웹 검색을 수행합니다.",
         "OCR 8B – 이미지 속 텍스트를 추출하고, 한국어 텍스트만 별도로 반환합니다(고속 모드 제외).",
