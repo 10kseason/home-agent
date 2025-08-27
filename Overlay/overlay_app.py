@@ -642,17 +642,30 @@ class Orchestrator:
         ut = (user_text or "").strip()
         low = ut.lower()
 
-        # 웹검색만 키워드 기반으로 처리
+        # 웹검색
         if ("웹검색" in ut) or ("검색" in ut) or ("search" in low):
             q = ut
-            for kw in ("웹검색", "검색", "search"):
+            for kw in ("웹검색","검색","search"):
                 if kw in ut:
-                    i = ut.find(kw) + len(kw)
+                    i = ut.find(kw)+len(kw)
                     q = ut[i:].strip() or ut
                     break
-            return [{"name": "web.search", "args": {"q": q}}]
+            return [{"name":"web.search","args":{"q": q}}]
 
-        # 기타 도구는 LLM에 의해 의미 기반으로 결정되도록 비워둔다
+        # OCR
+        if ("ocr" in low or "자막" in ut) and any(k in ut for k in ("켜","켜줘","start","시작","시작해")):
+            # 기본 힌트는 subtitle로 전달하여 Tool Memory 지침을 따름
+            return [{"name": "ocr.start", "args": {"hint": "subtitle"}}]
+        if ("ocr" in low or "자막" in ut) and any(k in ut for k in ("꺼","꺼줘","stop","중지","종료","멈춰")):
+            return [{"name":"ocr.stop","args":{}}]
+
+        # STT
+        if "stt" in low and any(k in ut for k in ("켜","켜줘","start","시작","시작해")):
+            # 실시간 모드로 시작하도록 명시
+            return [{"name": "stt.start", "args": {"mode": "realtime"}}]
+        if "stt" in low and any(k in ut for k in ("꺼","꺼줘","stop","중지","종료","멈춰")):
+            return [{"name":"stt.stop","args":{}}]
+
         return []
 
     def _system_prompt_tools(self) -> str:
@@ -806,7 +819,7 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
         say = scan["masked_text"]
         tc_from_text = parsed.get("tool_calls") or []
 
-        # ③ 휴리스틱(우선순위 낮음)
+        # ③ 휴리스틱(최우선)
         tc_heur = self._heuristic_route(user_text)
 
         # ④ 허용 툴만 통과
@@ -819,18 +832,15 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
             return ok
 
         tool_calls = []
-        if tc_from_text:
+        if tc_heur:
+            tool_calls = _filter_ok(tc_heur)
+        elif tc_from_text:
             tool_calls = _filter_ok(tc_from_text)
         else:
-            tmp = []
             for tc in tc_openai:
                 it = openai_tc_to_internal(tc)
-                if it:
-                    tmp.append(it)
-            if tmp:
-                tool_calls = _filter_ok(tmp)
-            elif tc_heur:
-                tool_calls = _filter_ok(tc_heur)
+                if it: tool_calls.append(it)
+            tool_calls = _filter_ok(tool_calls)
 
         self.history_tools += [
             {"role":"user","content":user_text},
