@@ -1,4 +1,6 @@
 import uvicorn
+from datetime import datetime
+import traceback
 from loguru import logger
 from .context import load_config, Ctx
 from .server import create_app
@@ -22,16 +24,21 @@ def _load_plugins(cfg, ctx):
         return []
 
 def main():
-    cfg = load_config()
-    ctx = Ctx(cfg)
-    plugins = _load_plugins(cfg, ctx)  # list[BasePlugin]
-    app = create_app(ctx, plugins)
+    try:
+        cfg = load_config()
+        ctx = Ctx(cfg)
+        plugins = _load_plugins(cfg, ctx)  # list[BasePlugin]
+        app = create_app(ctx, plugins)
 
-    host = (cfg.get("server") or {}).get("host", "127.0.0.1")
-    port = int((cfg.get("server") or {}).get("port", 8765))
+        host = (cfg.get("server") or {}).get("host", "127.0.0.1")
+        port = int((cfg.get("server") or {}).get("port", 8765))
 
-    logger.info(f"[server] starting on http://{host}:{port}")
-    uvicorn.run(app, host=host, port=port, log_level="info")
+        logger.info(f"[server] starting on http://{host}:{port}")
+        uvicorn.run(app, host=host, port=port, log_level="info")
+    except Exception:
+        with open("error.log", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat()}\n{traceback.format_exc()}\n")
+        raise
 
 if __name__ == "__main__":
     main()
