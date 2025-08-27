@@ -57,7 +57,7 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
   - 결과 Overlay에 표시
 - **고속 모드**:
   - `Qwen2.5-VL-7B`가 OCR과 한국어 번역을 한 번에 수행
-  - 추가적으로 **Tesseract OCR** 엔진이 필요하며 `requirements.txt`에 포함되어 있습니다.
+
 - **자동 고속 모드**:
   - VRAM이 12GB 이하이거나 RAM이 24GB 이하인 시스템에서는 고속 모드가 강제 적용되며 비활성화할 수 없습니다.
 
