@@ -16,6 +16,8 @@
 Qwen2.5-VL-7B (고속 OCR+한국어 번역)
 Qwen3 2507 4B
 Qwen3 8B
+
+
 GPT-OSS-20B (선택적)
 Qwen3 14B (선택적)
 LM studio에서 각 모델을 받아야 합니다.
