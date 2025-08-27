@@ -248,6 +248,28 @@ def kb_search(args: Dict[str, Any]):
     results.sort(key=lambda x: x["score"], reverse=True)
     return {"ok": True, "items": results[:top_k]}
 
+# ---------- lang.detect ----------
+@register("lang.detect")
+def lang_detect(args: Dict[str, Any]):
+    text = (args.get("text") or "").strip()
+    target = (args.get("target") or "").lower().strip()
+    if not text:
+        return {"ok": True, "language": "unknown", "needs_translation": bool(target)}
+
+    if re.search(r"[\uac00-\ud7a3]", text):
+        lang = "Korean"
+    elif re.search(r"[\u3040-\u30ff]", text):
+        lang = "Japanese"
+    elif re.search(r"[\u4e00-\u9fff]", text):
+        lang = "Chinese"
+    elif re.search(r"[A-Za-z]", text):
+        lang = "English"
+    else:
+        lang = "unknown"
+
+    needs = bool(target) and (lang.lower() != target)
+    return {"ok": True, "language": lang, "needs_translation": needs}
+
 # ---------- translation (LLM-based) ----------
 @register("translation")
 def translation_tool(args: Dict[str, Any]):
@@ -299,6 +321,7 @@ def translation_tool(args: Dict[str, Any]):
 def tool_list(args: Dict[str, Any]):
     items = [
         "Translation – 주어진 문장을 지정한 언어로 번역합니다.",
+        "Lang Detect – 텍스트의 언어(한국어/영어/일본어/중국어)를 추정합니다.",
         "DDG Search – DuckDuckGo를 사용하여 안전하게 웹 검색을 수행합니다.",
         "OCR 8B – 이미지 속 텍스트를 추출하고, 한국어 텍스트만 별도로 반환합니다(고속 모드 제외).",
     ]
