@@ -65,6 +65,35 @@ class TranslatorPlugin(BasePlugin):
             logger.error(f"Translate error: {e}")
             return None
 
+    async def _needs_translation(self, text: str, target_lang: str = "ko") -> bool:
+        cfg = self.ctx.config.get("translate", {})
+        endpoint = cfg.get("endpoint")
+        model = cfg.get("model")
+        api_key = cfg.get("api_key", "")
+        if not endpoint or not model:
+            return True
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        prompt = (
+            f"Text:\n{text}\n\nDoes this require translation to {target_lang}?" " Answer yes or no."
+        )
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "You decide if translation is needed."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0,
+        }
+        timeout = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=30.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
+            r.raise_for_status()
+            data = r.json()
+        ans = (data["choices"][0]["message"]["content"] or "").strip().lower()
+        return ans.startswith("y")
+
     async def handle(self, event):
         payload = event.payload or {}
         existing = (payload.get("translation") or "").strip()
@@ -72,7 +101,14 @@ class TranslatorPlugin(BasePlugin):
         if not text and not existing:
             return
 
-        translated = existing or await self._translate(text, target_lang="ko")
+        translated = existing
+        if not translated:
+            try:
+                if not await self._needs_translation(text, target_lang="ko"):
+                    return
+            except Exception as e:
+                logger.debug(f"[translator] needs_translation error: {e}")
+            translated = await self._translate(text, target_lang="ko")
         if not translated:
             # 실패 시: 원문을 그대로 토스트/로그(앱은 멈추지 않게)
             fallback = (strip_think(text) or text)[:180]
