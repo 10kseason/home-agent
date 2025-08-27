@@ -324,9 +324,9 @@ DEFAULT_MEMORY = (
     "Hard rules:\\n"
     "- No chain-of-thought; no explanations. JSON ONLY.\\n"
     "- Prefer short, actionable outputs. Omit 'say' if not needed.\\n"
-    "- Never translate content yourself. Use lang.detect and translation tools for English/Japanese/Chinese text.\\n"
     "- Do not store memory; assume these rules persist between turns.\\n"
-    "- Tool calls work only when response is valid JSON; other text is ignored.\\n\\n"
+    "- Tool calls work only when response is valid JSON; other text is ignored.\\n"
+    "- If a conversation is needed, respond in 'say' without calling a tool.\\n\\n"
     "0) Tools are discovered from the runtime registry loaded from \"tools/config/tools.yaml\".\\n"
     "   - Never call tools not present in that registry.\\n"
     "   - If unsure what exists, first call {\"name\":\"agent.list_tools\",\"args\":{}} to fetch names.\\n"
@@ -345,9 +345,6 @@ DEFAULT_MEMORY = (
     "   -> {\"name\":\"agent.event\",\"args\":{\"type\":\"overlay.note\",\"payload\":{\"note\":\"...\",\"source\":\"overlay\"},\"priority\":5}}\\n\\n"
     "5) Open a link in the default browser\\n"
     "   -> {\"name\":\"overlay.open_url\",\"args\":{\"url\":\"https://...\"}}\\n"
-    "6) Translate between Korean and English/Japanese/Chinese on request\\n"
-    "   -> {\"name\":\"lang.detect\",\"args\":{\"text\":\"...\",\"target\":\"English|Japanese|Chinese\"}}\\n"
-    "   -> If needed: {\"name\":\"translation\",\"args\":{\"text\":\"...\",\"target\":\"English|Japanese|Chinese\"}}\\n"
     "\\nAvailable tools will be listed below and can be refreshed via /tools command.\\n"
 )
 
@@ -679,9 +676,9 @@ class Orchestrator:
 Hard rules:
 - No chain-of-thought; no explanations. JSON ONLY.
 - Prefer short, actionable outputs. If you have nothing to say, omit "say".
-- Never translate content yourself. Use lang.detect and translation tools for English/Japanese/Chinese text.
 - Do not store memory; assume these rules persist between turns.
 - Tool calls work only when response is valid JSON; other text is ignored.
+- If a conversation is needed, respond in "say" without calling a tool.
 
 When to call tools:
 1) OCR needed (new subtitles, small UI text, non-Korean text visible)
@@ -701,10 +698,6 @@ When to call tools:
 
 5) Open a link in the default browser
    -> {"name":"overlay.open_url","args":{"url":"https://example.com"}}
-
-6) Translate between Korean and English/Japanese/Chinese on request
-   -> {"name":"lang.detect","args":{"text":"...","target":"English|Japanese|Chinese"}}
-   -> If needed: {"name":"translation","args":{"text":"...","target":"English|Japanese|Chinese"}}
 
 Examples:
 Q: 자막 켜줘
@@ -1010,15 +1003,10 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
                 if handler:
                     res = handler(args)
                     logger.info(f"[tool] {name} → {res}")
-                    if self.window:
-                        if name == "translation":
-                            txt = res.get("translation") if isinstance(res, dict) else str(res or "")
-                            if txt:
-                                self.window.appended.emit("🔡 Translation", txt)
-                        elif name == "tool.list":
-                            lines = res.get("tools") if isinstance(res, dict) else res
-                            msg = "\n".join(lines) if isinstance(lines, list) else str(lines)
-                            self.window.appended.emit("🛠️ Tools", msg)
+                    if self.window and name == "tool.list":
+                        lines = res.get("tools") if isinstance(res, dict) else res
+                        msg = "\n".join(lines) if isinstance(lines, list) else str(lines)
+                        self.window.appended.emit("🛠️ Tools", msg)
                     continue
                 elif isinstance(spec, dict):
                     kind = (spec.get("kind") or "").lower()
