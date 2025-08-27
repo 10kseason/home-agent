@@ -7,7 +7,7 @@ LM Studio OCR → Translation Snipping Tool
 
 모드
 - 일반 모드: OCR 모델(비전/혹은 OCR LLM) → 텍스트 추출 → 번역 모델로 번역 (2단계)
-- 고속 모드: **Qwen2.5-VL-7B**에 "OCR 하고, 한국어로 번역하세요" 시스템프롬프트를 넣어 한 번에 처리 (1단계)
+- 고속 모드: **Qwen2.5-VL-7B**에 특수 시스템 프롬프트를 넣어 이미지에서 텍스트를 읽고 즉시 한국어로 번역 (1단계)
 
 완료 시
 - 결과 창은 띄우지 않음 (요청사항)
@@ -111,6 +111,14 @@ DEFAULT_CONFIG = {
     "show_result_popup": False,        # 작은 팝업 표시 안 함
     "popup_content": "translation"
 }
+
+
+_FAST_VLM_SYSTEM_PROMPT = (
+    "Read the input document image(s) and perform OCR first, then immediately translate the extracted text into "
+    "Korean. Preserve the natural reading order and line breaks. Do not summarize, paraphrase, add explanations, or "
+    "describe non-textual visuals. Keep numbers, symbols, and proper nouns exactly as seen; for formulas keep them as-is; "
+    "for tables, keep cell order line-by-line."
+)
 
 
 def _strip_think_tags(text: str) -> str:
@@ -289,6 +297,24 @@ class WorkerOCRTranslate(QThread):
         data = self._post_chat(payload)
         return ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
 
+    def _run_fast_vlm(self, image_bytes: bytes) -> str:
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        payload = {
+            "model": "qwen/qwen2.5-vl-7b",
+            "temperature": 0,
+            "messages": [
+                {"role": "system", "content": _FAST_VLM_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}},
+                    ],
+                },
+            ],
+        }
+        data = self._post_chat(payload)
+        return ((data.get("choices") or [{}])[0].get("message", {}).get("content", "")).strip()
+
     def _detect_lang(self, text: str) -> str:
         if re.search("[\u3040-\u30ff]", text):
             return "ja"
@@ -299,8 +325,8 @@ class WorkerOCRTranslate(QThread):
     def run(self):
         try:
             if self.cfg.get("fast_vlm_mode", False):
-                ocr_text = self._run_tesseract(self.image_bytes)
-                translated = self._run_translate(ocr_text)
+                ocr_text = ""
+                translated = self._run_fast_vlm(self.image_bytes)
             else:
                 ocr_text = self._run_ocr(self.image_bytes)
                 translated = self._run_translate(ocr_text)
@@ -440,7 +466,7 @@ class MainWindow(QMainWindow):
             checked = True
             self.chk_fast.setChecked(True)
         self.ed_ocr_model.setEnabled(not checked)
-        self.ed_trans_model.setEnabled(True)
+        self.ed_trans_model.setEnabled(not checked)
         self.cfg["fast_vlm_mode"] = checked
         save_config(self.cfg)
         self.register_hotkey(auto=True)
@@ -550,10 +576,16 @@ class MainWindow(QMainWindow):
             QApplication.clipboard().setText((trans_clean or ocr_clean or "").strip())
 
         # Report which models processed the request (fast mode uses Qwen2.5-VL-7B only)
-        model_info = {
-            "ocr_model": "qwen/qwen2.5-vl-7b" if self.cfg.get("fast_vlm_mode", False) else self.cfg.get("ocr_model"),
-            "translate_model": self.cfg.get("translate_model"),
-        }
+        if self.cfg.get("fast_vlm_mode", False):
+            model_info = {
+                "ocr_model": "qwen/qwen2.5-vl-7b",
+                "translate_model": "qwen/qwen2.5-vl-7b",
+            }
+        else:
+            model_info = {
+                "ocr_model": self.cfg.get("ocr_model"),
+                "translate_model": self.cfg.get("translate_model"),
+            }
         _post_event(
             "ocr.text",
             {
