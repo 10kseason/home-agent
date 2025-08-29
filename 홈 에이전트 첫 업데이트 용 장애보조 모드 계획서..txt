@@ -1,0 +1,967 @@
+홈 에이전트 첫 업데이트 용 장애보조 모드 계획서.
+
+(8GB VRAM에서 안정적으로 굴리려면 **동시 상주 금지(순차 실행)**와 창 단위 캡처 기본값이 핵심.)
+
+파이프 라인 : Whisper → Qwen3 2507 4B(의도/툴콜 전담) → PaddleOCR → Qwen3 2507 4B Reasoning(충실프롬프트+번역) → TTS.
+
+후처리 락(LLM 오역 방지 턴킷): 정규식으로 \d+(\.\d+)?/날짜/URL/이메일 추출 → 번역문에 동일 토큰이 그대로 존재하는지 검사. 없으면 문장 재요청(“보존 규칙 위반”). 표/리스트 감지 시 헤더명 고정(첫 행은 ‘머리글’이라고 명시적으로 읽기).
+
+(리소스/지연 예산(8GB 현실값))
+
+동시 상주 금지: Whisper ↔ 4B ↔ PaddleOCR(가능하면 CPU) ↔ TTS 순차.
+
+실패도 말로: “OCR 품질 낮음—확대해서 다시 시도할까요?
+
+(4B 번역(충실 모드) 프롬프트 고정안)
+
+“원문 의미 변경 금지, 재서술 금지.”
+
+“숫자·날짜·단위·URL·이메일·코드블록·제품명은 원형 보존.”
+
+“레이아웃 순서 유지, 표는 행→열.”
+
+“불확실한 부분은 원문 유지(각괄호).”
+
+출력은 문장 단위로 끊어 주고, TTS는 문장 들어오는 대로 스트리밍.
+
+문장 분할 규칙(간단): 쉼표 ≥2 또는 토큰 ≥~38이면 분할.
+
+(보존-락(invariant check) 최소 구현)
+
+번역 후 아래 토큰 수가 원문과 동일해야 통과:
+
+숫자(정수/소수) · 날짜 · 통화 · 단위(%, °C, MB, km 등)
+
+URL/이메일 · 코드 블록 기호 · 제품/브랜드(옵션: 글로서리)
+
+OCR 후처리(읽기 순서 안정화)
+
+창 단위 캡처 기본값(fullscreen은 옵션): 레이아웃 꼬임 급감.
+
+PaddleOCR bbox를 행(y-center)→열(x) 순으로 정렬.
+
+집중모드 (큐/우선순위: Reflex(바지-인) ≫ TTS ≫ UIA ≫ OCR ≫ LLM 의도/번역)
+
+리소스/지연 예산 (8GB VRAM)
+
+동시 상주 금지: Whisper(저VRAM/CPU), Qwen3 2507 4B(4bit), PaddleOCR(CPU 권장), TTS(논블로킹) 순차 가동
+
+
+
+핵심 요약
+
+UIA 우선, OCR 폴백: 커서 주변 텍스트 요소만 정확히 집는다.
+
+핫패스: LLM 우회(읽기/번역/철자/숫자/다음·이전 줄 등은 즉시).
+
+바지-인(중간 끼어들기): TTS 중에도 짧은 명령은 즉시 처리, 모호할 때만 Qwen3-4B가 JSON 의도 확정.
+
+보존-락: 숫자·URL·단위 등 원형 보존 검사 → 실패 문장만 재요청.
+
+8GB 설계: Whisper·4B·TTS·OCR 순차 가동, MT/7B는 조건부 상향.
+
+구성요소 & 역할
+
+stt_plugin(Whisper): 실시간 STT. TTS 중엔 command_only 모드.
+
+uia_plugin: ElementFromPoint 등으로 텍스트/BoundingRect 추출.
+
+ocr_plugin(PaddleOCR): UIA 실패 시 커서 주변 ROI OCR.
+
+intent_rules: 규칙 기반 슬럿 분류(translate/spell/numbers/summarize/read).
+
+intent_llm(Qwen3-2507-4B): 모호 지시만 JSON 의도 확정.
+
+translator_llm(Qwen3-2507-4B): “충실 모드” 번역(재서술 금지).
+
+tts_plugin: 문장 스트리밍 낭독(+중지/재개/속도조절).
+
+overlay: 노란 하이라이트 박스, 상태 칩(현재 모드 표기).
+
+event_bus: 비동기 메시지 허브(모듈 간 강결합 금지).
+
+상태머신(FSM)
+IDLE
+ └─(FocusMode.on)→ TARGETING
+TARGETING
+ ├─(target_acquired)→ READING
+ └─(no_text)→ WAIT_CMD      # "더 크게?" 등 안내
+READING  (TTS active)
+ ├─(barge-in/reflex cmd)→ ACT_ON_CMD → READING
+ ├─(cursor_move>threshold & follow_on)→ TARGETING
+ └─(pin)→ PINNED
+PINNED
+ ├─(cmd next/prev line)→ READING
+ └─(unpin)→ READING
+WAIT_CMD
+ ├─(“더 크게”)→ TARGETING(roi↑)
+ └─(timeout/esc)→ IDLE
+
+이벤트 버스 API (스키마 요약)
+
+FocusMode.toggle {on: bool}
+
+Focus.Pick.request {cursor:{x,y}}
+
+Focus.Pick.result {method:"uia|ocr", bbox, text, lang, is_table: bool}
+
+Focus.Intent.request {utterance, text, lang}
+
+Focus.Intent.result {intent:"read|translate|spell|numbers|summarize", mode:"faithful|natural", lang_tgt?: "ko|en|..."}
+
+Focus.Read.request {text, style:"news|spell|numbers", rate: float}
+
+Translate.Request {text, mode:"faithful", preserve:["NUMBER","URL","UNIT","EMAIL","CODE"]}
+
+Translate.Result {text, ok: bool, reason?: string}
+
+Overlay.Highlight {bbox, pinned: bool}
+
+TTS.Start/Stop/Progress {idx?: int}
+
+STT.Mode.set {mode:"command_only|full"}
+
+BargeIn.Command {type:"repeat|pause|resume|slower|faster|next|prev|translate|spell|numbers|summarize"}
+
+처리 파이프라인(집중 모드 핫패스)
+1) 활성화
+
+FocusMode.toggle(on=true)
+
+커서 좌표 취득 → Focus.Pick.request
+
+2) 타깃 픽킹( UIA→OCR )
+
+UIA 우선
+
+element = ElementFromPoint(cursor)
+
+role ∈ {Text, Edit, Hyperlink, Button, MenuItem} 이고 길이>0 → text, bbox 반환
+
+OCR 폴백
+
+ROI 정사각형: min(0.35*min(screen_w,h), 480px)
+
+OCR 블록 스코어링:
+score = w_text*(1/(dist+ε)) + w_size*font_est - w_contrast_penalty
+
+최고점 블록 선택 → text, bbox
+
+결과 없으면 WAIT_CMD로 전환(TTS: “텍스트 없음. 더 크게?”)
+
+3) 의도 결정을 “작게”
+
+기본: read
+
+규칙 매칭(다국어 키워드):
+
+번역/한국어로/영어로/translate → translate
+
+철자/스펠/하나씩 → spell
+
+숫자만/수치/percent → numbers
+
+요약/핵심 → summarize
+
+애매하면 Focus.Intent.request → Qwen3-4B가 JSON만 반환.
+
+TTS가 켜져 있으면 STT는 command_only로, 바지-인 명령만 통과.
+
+4) 실행
+
+read → TTS.Start(text)
+
+translate → Translate.Request(text,"faithful") → 보존-락 검사 → TTS.Start
+
+spell → 문자단위 분해 낭독
+
+numbers → 숫자/단위만 추출 낭독
+
+summarize → LLM 요약(길이 제한, 보존-락은 숫자만)
+
+5) 바지-인(중간 끼어들기)
+
+TTS 중 STT는 AEC 적용 + command_only
+
+매칭되면 즉시 TTS.Stop → 명령 실행
+
+repeat → 같은 문장 재생
+
+next/prev → 인덱스 이동
+
+slower/faster → 속도 조정 후 이어 재생
+
+translate/spell/numbers → 같은 text에 모드 전환 재생
+
+모호 명령만 intent_llm 호출(“두 줄 뒤 영어로 읽어줘” 등)
+
+보존-락(번역 정확도 안전장치)
+
+패턴: NUMBER, DATE, PERCENT, CURRENCY, UNIT(°C, MB, km, ms…), URL, EMAIL, CODE
+
+원문 대비 토큰 개수 동일해야 통과, 실패 시 해당 문장만 재요청(“보존 규칙 위반”).
+
+표/리스트는 행→열 고정, 첫 행은 “머리글”로 선언해 읽기.
+
+에지 케이스 처리
+
+멀티모니터/DPI: 좌표 변환 유틸 공통화(오버레이/클릭/ROI 일관)
+
+표/양식: 헤더 미검출 시 “머리글 불명—행 순서로 읽음” 한 줄 알림
+
+아래로는 확장 음성명령 + 집중모드
+목표: 딱 붙여서 돌릴 수 있게 하고, 나중에 확장/튜닝도 쉬운 구조.
+
+0) 전체 개요 (한눈 구조도)
+
+
+
+[STT]──▶[Rule NLU]──┐
+
+                    │(모호)
+
+                    ▼
+
+           [LLM NLU(JSON)]──▶ {intent DSL}
+
+                                │[UIA Picker]──▶ {text,bbox,…}───┼──▶[Executor(UIA优先→OCR좌표)]
+
+      │                         │
+
+      └─(실패)▶[ROI OCR]────────┘
+
+                    │
+
+                    └─▶[Translator 4B(충실)+Preserve-Lock]──▶[TTS]
+
+                                     ▲
+
+                           [Context Packer(롤링윈도우+예산)]
+
+1) 설정 파일(YAML) 설계
+
+1.1 최상위 레이아웃
+
+
+
+version: 1profiles:
+
+  default: &defaults
+
+    windows:
+
+      stt: { hot_seconds: 3, full_seconds: 12 }
+
+      uia: { snapshots: 3, ttl_ms: 1500 }
+
+      ocr: { topk: 20, history: 2, ttl_ms: 2500 }
+
+      text: { prev: 2, next: 2 }
+
+      log: { recent: 8 }
+
+
+
+    focus_mode:
+
+      follow: true
+
+      move_threshold_px: 24
+
+      debounce_ms: 250
+
+      roi_px: 420
+
+      prefer_uia: true
+
+
+
+    overlay:
+
+      color: "#FFD84A"
+
+      dim_outside: 0.18
+
+      corner_radius: 10
+
+      show_numbers: true
+
+
+
+    voice:
+
+      wake_word: "루나"           # null이면 항상 듣기
+
+      command_mode: "auto"        # auto | hold | wake-only
+
+      synonyms:
+
+        click: ["눌러","클릭","선택","실행"]
+
+        translate: ["번역","한국어로","영어로","translate"]
+
+        spell: ["철자","스펠","하나씩"]
+
+        numbers: ["숫자만","수치만","퍼센트만"]
+
+        fast: ["빠르게","속도 올려"]
+
+        slow: ["느리게","속도 내려"]
+
+      dangerous: ["삭제","비우","전송","구매","결제"]
+
+
+
+    llm_budget:
+
+      max_tokens: 1600
+
+      caps: { system: 200, device_state: 80, digest: 120, candidates: 300, user_utterance: 60 }
+
+      barge_in_shrink: 0.5
+
+      timeout_ms_soft: 600   # 넘으면 1회 예산 +50%
+
+
+
+    thinking_budget:
+
+      nlu_intent: 96
+
+      selection_disambiguation: 256
+
+      translate_faithful: 192
+
+      summarize_short: 256
+
+      macro_plan: 384
+
+
+
+    answer_budget:
+
+      nlu_intent: 96
+
+      selection_disambiguation: 128
+
+      translate_faithful: 192
+
+      summarize_short: 128
+
+      macro_plan: 192
+
+
+
+    ranking:
+
+      weights:
+
+        text: 0.52
+
+        role: 0.18
+
+        near: 0.20
+
+        spatial: 0.10
+
+        disabled_penalty: 0.05
+
+      topk_for_llm: 5
+
+
+
+    translation:
+
+      mode_default: "faithful"
+
+      preserve_tokens: ["NUMBER","DATE","UNIT","URL","EMAIL","CODE","CURRENCY"]
+
+      escalate_if: ["preserve_failed>=1","negations>=2","policy_keywords>=1"]
+
+
+
+    barge_in:
+
+      enabled: true
+
+      debounce_ms: 300
+
+      min_repeat_interval_ms: 800
+
+      aec:
+
+        enable: true
+
+        loopback: "wasapi"
+
+        safety_gate_ms: 200
+
+
+
+    executor:
+
+      uia_first: true
+
+      coord_fallback: true
+
+      confirm_on_danger: true
+
+      confirm_requires_wake: true  # “루나, 예”처럼 재확인
+
+
+
+    privacy:
+
+      block_roles: ["Password","ProtectedText"]
+
+      redact: ["EMAIL","URL"]
+
+      store_think: false
+
+      buffer_disk_persist: false
+
+      ttl_purge_ms: 3000
+
+
+
+    metrics:
+
+      enable: true
+
+      counters: ["latency_ms","used_tokens.think","used_tokens.answer","preserve_fail","clarify","ocr_rate","uia_rate"]
+
+      sample_rate: 1.0profiles:
+
+  low_vram:
+
+    <<: *defaults
+
+    windows:
+
+      uia: { snapshots: 2, ttl_ms: 1200 }
+
+      ocr: { topk: 12, history: 1, ttl_ms: 2000 }
+
+    llm_budget:
+
+      max_tokens: 1200
+
+      barge_in_shrink: 0.4
+
+필수 포인트
+
+**anchors(&defaults)**로 기본값 묶고 프로필로 오버라이드.
+
+timeout_ms_soft 초과 시 1회에 한해 thinking/answer +50% 증액.
+
+privacy.block_roles로 보안 필드 차단.
+
+1.2 DSL/LLM JSON 스키마(주석 포함 예시)
+
+
+
+schemas:
+
+  llm_request:
+
+    v: "1.0"
+
+    task: "nlu_intent | selection_disambiguation | translate_faithful | summarize_short | macro_plan"
+
+    user_utterance: "string"
+
+    candidates: # 상위 K개만
+
+      - { id: "e12", role: "Button|Edit|ListItem|OCR", text: "string", automationId: "string|null",
+
+          near: ["string"], zone: "top|top-right|right|...", enabled: true }
+
+    rules:
+
+      must_choose_from_candidates: true
+
+      dangerous: ["삭제","비우","전송","구매","결제"]
+
+  llm_response:
+
+    action: "invoke|set_value|toggle|select|scroll|key|hotkey|clarify"
+
+    target: { id: "e12" }     # 반드시 candidates.id 중 하나
+
+    params: { value?: "string", direction?: "down|up", amount?: "small|page|end", key?: "enter", hotkey?: "ctrl+s" }
+
+    options: ["우하단 저장","좌상단 저장"] # clarify일 때만, 최대 3개
+
+2) 핵심 의사코드 (모듈별)
+
+2.1 공통: 상태/버퍼/이벤트버스
+
+
+
+class State:
+
+    focus_on = False
+
+    pinned = False
+
+    tts_playing = False
+
+    last_candidates = []
+
+    last_text = ""
+
+    sentence_idx = 0
+
+    digest = {"intent": [], "context": ""}  # 2줄 요약 용
+
+    timers = {}class Buffers:
+
+    stt_hot = Ring(seconds=cfg.windows.stt.hot_seconds)
+
+    stt_full = Ring(seconds=cfg.windows.stt.full_seconds)
+
+    uia_snaps = Ring(n=cfg.windows.uia.snapshots, ttl_ms=cfg.windows.uia.ttl_ms)
+
+    ocr_rois = Ring(n=cfg.windows.ocr.history, ttl_ms=cfg.windows.ocr.ttl_ms)
+
+    text_lines = SlidingWindow(prev=cfg.windows.text.prev, next=cfg.windows.text.next)
+
+    log_recent = Ring(n=cfg.windows.log.recent)
+
+
+
+bus = EventBus()  # pub/sub
+
+state, buffers = State(), Buffers()
+
+2.2 UIA/Paddle OCR 어댑터
+
+
+
+def uia_stable_id(el) -> str:
+
+    # 영속 키: 프로세스/윈도우/AutomationId/role/name/트리경로
+
+    path = "/".join(index_path(el))
+
+    return sha1(f"{el.proc}:{el.hwnd}:{el.automationId}|{el.role}|{el.name}|{path}")def pick_uia_from_point(cursor):
+
+    el = UIA.element_from_point(cursor)
+
+    if not el: return None
+
+    if el.role in PRIVACY_BLOCK_ROLES: return None
+
+    txt = UIA.get_text(el)  # TextPattern/ValuePattern/Name
+
+    if (txt is None) or (txt.strip()==""): return None
+
+    return {
+
+        "id": uia_stable_id(el), "role": el.role, "text": txt, "bbox": el.bbox,
+
+        "automationId": el.automationId, "near": derive_near(el), "zone": zone_of(el), "enabled": el.enabled
+
+    }def pick_ocr_roi(cursor, roi_px):
+
+    bbox = square_roi_around(cursor, roi_px)
+
+    blocks = PaddleOCR.read_blocks(capture(bbox))  # [{text,bbox,conf},...]
+
+    blocks = [b for b in blocks if b["conf"]>0.5 and b["text"].strip()]
+
+    # 절대좌표로 치환
+
+    for b in blocks: b["bbox"] = abs_bbox(b["bbox"], bbox)
+
+    return blocks  # 상위 conf+거리 기반으로 후순위에서 랭킹
+
+2.3 후보 랭킹 & 상위 K 트리밍
+
+
+
+def rank_candidates(utter, uia_cands, ocr_cands, K=cfg.ranking.topk_for_llm):
+
+    # 1) 일단 UIA 우선, 그 뒤 OCR
+
+    merged = uia_cands + [{"role":"OCR", **c} for c in ocr_cands]
+
+    # 2) 점수 계산
+
+    scored = []
+
+    for c in merged:
+
+        s = 0
+
+        s += cfg.ranking.weights["text"] * sim_text(utter, c.get("text",""))
+
+        s += cfg.ranking.weights["role"] * role_match(utter, c.get("role",""))
+
+        s += cfg.ranking.weights["near"] * near_match(utter, c.get("near",[]))
+
+        s += cfg.ranking.weights["spatial"] * spatial_match(utter, c.get("zone",""))
+
+        if not c.get("enabled", True):
+
+            s -= cfg.ranking.weights["disabled_penalty"]
+
+        scored.append((s,c))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    return [c for _,c in scored[:K]]
+
+2.4 규칙 NLU → DSL 초안
+
+
+
+def rules_try_build(utter):
+
+    # 동사/대상/위치 파싱 (간단 정규+사전)
+
+    action = verb_intent(utter)  # invoke | set_value | select | scroll | key | hotkey
+
+    if not action: return None
+
+    # 값 입력
+
+    value = extract_quoted(utter)  # "…"
+
+    # 위치/순번 힌트
+
+    position = parse_position(utter)  # {"relation":"below","of":"파일 이름"} 등
+
+    text_query = extract_target_text(utter)  # "저장" 등
+
+    dsl = { "action": action, "target": {}, "params": {} }
+
+    if text_query: dsl["target"]["text"] = [text_query]
+
+    if position: dsl["target"]["position"] = position
+
+    if value: dsl["params"]["value"] = value
+
+    return dsl
+
+바로 실행 요건: 규칙 DSL로 후보 매칭 결과가 정확히 1개면 LLM 생략.
+
+2.5 컨텍스트 패커(롤링 윈도우 + 토큰 캡)
+
+
+
+def pack_prompt(task, utter, candidates, device_state, digest):
+
+    parts = []
+
+    parts += [SYSTEM_RULES_JSON]                       # 좌표 금지/후보 id 중 선택/위험어 clarify
+
+    parts += [truncate_json({"device_state": device_state}, cap=cfg.llm_budget.caps["device_state"])]
+
+    parts += [truncate_json({"digest": digest}, cap=cfg.llm_budget.caps["digest"])]
+
+    parts += [truncate_json({"candidates": candidates}, cap=cfg.llm_budget.caps["candidates"])]
+
+    parts += [truncate_json({"user_utterance": utter}, cap=cfg.llm_budget.caps["user_utterance"])]
+
+    # 나머지 토큰은 타깃 텍스트(집중모드)나 필요 섹션에 할당
+
+    return join(parts)
+
+2.6 2단계 추론(Thinking/Answer) — 예산 거버넌스 포함
+
+
+
+def budgets_for(task, barge_in=False):
+
+    tb = cfg.thinking_budget[task]
+
+    ab = cfg.answer_budget[task]
+
+    if barge_in:
+
+        f = cfg.llm_budget.barge_in_shrink
+
+        tb, ab = math.floor(tb*f), math.floor(ab*f)
+
+    return tb, abdef run_reasoning(task, prompt, barge_in=False):
+
+    tb, ab = budgets_for(task, barge_in)
+
+    t0 = now_ms()
+
+    # 1) 생각
+
+    think = llm.generate(prompt.start_think(), max_new_tokens=tb, stop=["</think>"])
+
+    if not think.endswith("</think>"):
+
+        think += "</think>"
+
+    # 2) 답변(JSON)
+
+    answer = llm.generate(prompt.start_answer(think), max_new_tokens=ab, stop=["\n\n","}"])
+
+    used = {"think": token_count(think), "answer": token_count(answer)}
+
+    dt = now_ms()-t0
+
+
+
+    # timeout 소프트 벽 → 1회 예산 확대 재시도
+
+    if dt > cfg.llm_budget.timeout_ms_soft or not is_valid_json(answer):
+
+        tb2, ab2 = math.floor(tb*1.5), math.floor(ab*1.5)
+
+        answer = llm.generate(prompt.start_answer(think), max_new_tokens=ab2, stop=["\n\n","}"])
+
+        used["answer2"] = token_count(answer)
+
+
+
+    json_resp = safe_json(answer) or {"action":"clarify","options": suggest_options(candidates)}
+
+    return json_resp, used
+
+2.7 집중 모드 파이프라인 (핫패스 포함)
+
+
+
+@bus.on("FocusMode.toggle")def on_focus_toggle(on: bool):
+
+    state.focus_on = on
+
+    if on: pick_and_maybe_read()def pick_and_maybe_read():
+
+    cur = get_cursor()
+
+    # 1) UIA 우선
+
+    uia_cand = pick_uia_from_point(cur)
+
+    if uia_cand:
+
+        target = uia_cand
+
+    else:
+
+        ocr_blocks = pick_ocr_roi(cur, cfg.focus_mode.roi_px)
+
+        target = best_block(ocr_blocks, cur)
+
+        if not target:
+
+            tts.say("텍스트가 없어요. 더 크게 할까요?")
+
+            return
+
+    state.last_text = normalize_text(target["text"])
+
+    state.last_candidates = [uia_cand] if uia_cand else [attach_meta_ocr(target)]
+
+    bus.publish("Overlay.Highlight", {"bbox": target["bbox"], "pinned": state.pinned})
+
+
+
+    # 2) 의도 결정(규칙→LLM)
+
+    utter = buffers.stt_full.last_utterance() or ""
+
+    dsl = rules_try_build(utter)
+
+    if dsl and match_unique(dsl, state.last_candidates):
+
+        execute_dsl(dsl); return
+
+
+
+    prompt = pack_prompt("nlu_intent", utter, state.last_candidates, device_state(), state.digest)
+
+    resp, used = run_reasoning("nlu_intent", prompt, barge_in=False)
+
+    execute_llm_response(resp)
+
+2.8 바지-인(중간 끼어들기) — 즉시 명령 우선
+
+
+
+@bus.on("STT.partial")def on_stt_partial(text):
+
+    if not state.tts_playing: return
+
+    if within_ms(state.timers.get("tts_edge"), cfg.barge_in.aec.safety_gate_ms):
+
+        return
+
+    cmd = match_reflex(text)  # 멈춰/다시/다음/이전/느리게/빠르게/번역/철자/숫자
+
+    if cmd:
+
+        tts.stop()
+
+        handle_reflex(cmd)           # LLM 0
+
+        return
+
+    if is_ambiguous(text):
+
+        tts.stop()
+
+        prompt = pack_prompt("nlu_intent", text, state.last_candidates, device_state(), state.digest)
+
+        resp, used = run_reasoning("nlu_intent", prompt, barge_in=True)
+
+        execute_llm_response(resp)
+
+2.9 보존-락(Preserve-Lock) — 번역 안전핀
+
+
+
+RX = {
+
+  "NUM": r"\d+(?:[.,]\d+)?",
+
+  "URL": r"https?://\S+",
+
+  "EMAIL": r"[\w\.-]+@[\w\.-]+\.\w+",
+
+  "UNIT": r"\b(?:MB|GB|MiB|%|°C|°F|km|kg|ms|s|px|dpi)\b",
+
+  "CURR": r"(₩|\$|€|¥|\bKRW\b|\bUSD\b)"
+
+}def preserve_ok(src, tgt):
+
+    for k,rx in RX.items():
+
+        if len(re.findall(rx,src,re.I)) != len(re.findall(rx,tgt,re.I)):
+
+            return False
+
+    return Truedef faithful_translate(text):
+
+    out = llm_translate_4b(text, mode="faithful")  # 프롬프트에 “재서술 금지”
+
+    if preserve_ok(text, out): return out
+
+    # 1회 재요청: 보존 규칙 위반 알림 프롬프트
+
+    out2 = llm_translate_4b(text, mode="faithful+preserve_strict")
+
+    return out2 if preserve_ok(text, out2) else f"[원문] {text}\n[번역(검증 실패)] {out2}"
+
+2.10 실행기(Executor) — UIA 우선 → 좌표 폴백
+
+
+
+def execute_llm_response(resp):
+
+    if resp["action"] == "clarify":
+
+        options = resp.get("options", [])[:3]
+
+        overlay_number_badges(options)
+
+        tts.say(f"{len(options)}개가 있어요. 몇 번?")
+
+        return
+
+
+
+    dsl = {"action": resp["action"], "target": {"id": resp["target"]["id"]}, "params": resp.get("params")}
+
+    execute_dsl(dsl)def execute_dsl(dsl):
+
+    a = dsl["action"]; tid = dsl["target"].get("id")
+
+    el = resolve_uia_by_stable_id(tid)
+
+    if a == "invoke":
+
+        if el and UIA.has_invoke(el): return UIA.invoke(el)
+
+        return click_fallback(tid)   # OCR bbox 중심 클릭
+
+    if a == "set_value":
+
+        val = dsl["params"]["value"]
+
+        if el and UIA.has_value(el): return UIA.set_value(el, val)
+
+        return type_fallback(val)
+
+    if a == "select":
+
+        txt = text_from_target(dsl)
+
+        if el and UIA.has_selection(el): return UIA.select(el, txt)
+
+        return ocr_click_by_text(txt)
+
+    if a == "scroll":
+
+        return UIA.scroll(el, dsl["params"]["direction"], dsl["params"]["amount"])
+
+    if a in ("key","hotkey"):
+
+        return send_key(a, dsl["params"])
+
+위험 명령 처리:
+
+
+
+
+
+def maybe_confirm_danger(utter):
+
+    if any(k in utter for k in cfg.voice.dangerous):
+
+        tts.say("위험한 작업이에요. 정말 진행할까요? '루나, 예'라고 말해 주세요.")
+
+        return wait_yes_with_wake()
+
+    return True
+
+3) UX/오버레이
+
+Highlight: 노란 라운드 박스 + 주변 18% 디밍.
+
+Numbers: 후보 다중일 때 ①②③ 배지.
+
+Top-chip: 현재 모드 표시(읽기/번역/철자/숫자).
+
+
+
+def overlay_number_badges(options):
+
+    # options 텍스트를 후보 bbox 위치에 배지로 렌더
+
+    for i,opt in enumerate(options, start=1):
+
+        Overlay.draw_badge(i, locate_by_option_text(opt))
+
+ 동시성/우선순위 & 리소스
+
+우선순위: Reflex(BI) > TTS > UIA > OCR > LLM
+
+8GB VRAM: Whisper(CPU/저VRAM), OCR(CPU), Qwen-4B(GPU, 4-bit). 동시 상주 금지 원칙: 큰 작업은 순차.
+5) 프라이버시/보안
+
+버퍼/로그 메모리 상주+TTL 파기, 디스크 미기록.
+
+로그 저장 시 <think> 제거, EMAIL/URL 토큰화.
+
+음성 보조의 관측/로깅(최소)
+
+보존-락 실패율/재요청률
+used_tokens {think, answer} + 결과(성공/clarify/실패)
+
+
+로컬 음성명령용 4B LLM 시스템 프롬프트(압축본 — 그대로 넣어 쓰면 됨)
+너는 데스크톱 보조 에이전트의 NLU다. 화면은 볼 수 없고, 텍스트 후보 목록만 본다.
+반드시 아래 JSON 스키마로만 답하라.
+- candidates.id 중 하나만 선택한다. 새로운 id/좌표/픽셀/이미지 언급 금지.
+- 위험 키워드(삭제, 비우, 전송, 구매, 결제)는 action="clarify"와 options로 되묻는다.
+- 모호하면 action="clarify"와 options(최대 3개 짧은 선택지)만 반환한다.
+
+한번 상세하게 보고 , 판단해봐줘. , Think Harder , Think Deeper, More information, 꼼꼼하게 확인해.
