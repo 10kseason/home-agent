@@ -7,10 +7,18 @@
 - `LICENSE` — [GPLv3, License] 저장소 전체의 기본 라이선스가 되는 GPLv3 문서입니다.
 - `README.md` — [Markdown, Docs] 프로젝트 개요와 설치 방법, 모델 요구사항 등을 설명합니다.
 - `requirements.txt` — [Config, Dependencies] 필요한 파이썬 라이브러리를 나열합니다.
+- `config.yaml` — [YAML, Config] OCR, STT, Overlay를 포함한 전역 설정과 접근성 플래그를 관리합니다.
 - `overlay_plugin_bridge.py` — [Python, Bridge] Overlay에서 도구를 등록하고 실행하는 방법을 안내하는 예시 코드입니다.
 - `처음 사용자용 실행 및 설치.bat` — [Batch, Setup] 윈도우 사용자를 위한 초기 설치/실행 스크립트입니다.
 
 ## 디렉터리 개요
+
+### `docs/`
+프로젝트 관련 문서 모음.
+- `REPO_STRUCTURE.md` — [Markdown, Docs] 현재 문서.
+- `SECURITY_PLUGINS.md` — [Markdown, Docs] 보안 플러그인 개요.
+- `TRANSLATION_VRAM_POLICY.md` — [Markdown, Docs] 번역 모델 VRAM 정책.
+- `ACCESSIBILITY_MODE.md` — [Markdown, Docs] 접근성 모드 업데이트 개요.
 
 ### `agent/`
 경량 이벤트 기반 에이전트 서버 코드.
@@ -39,7 +47,7 @@ GUI Overlay 애플리케이션과 해당 에이전트 복사본을 포함.
 - `__init__.py` — 패키지 초기화.
 - `LICENSE` — Overlay 모듈의 GPLv3 라이선스 사본.
 - `README.md` — Overlay 모듈 사용법.
-- `config.yaml` / `config_process_example.yaml` — Overlay 설정 예제.
+- `config_process_example.yaml` — Overlay 설정 예제(실행 시에는 최상위 `config.yaml` 사용).
 - `overlay_app.py` — 기본 Overlay GUI 애플리케이션.
 - `overlay_app_enhanced.py` — 확장 기능이 추가된 Overlay 버전.
 - `overlay_plugin_system.py` — 플러그인 등록과 실행을 위한 시스템 코드.

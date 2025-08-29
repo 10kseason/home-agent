@@ -1,0 +1,90 @@
+{
+  "_meta": {
+    "assumptions": "LLM chooses one id or clarify",
+    "risks": "Schema violation may cause rejection",
+    "alternatives": "Post-validate and retry",
+    "rationale": "Force deterministic UI control"
+  },
+  "type": "object",
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "read",
+        "translate",
+        "spell",
+        "numbers",
+        "summarize",
+        "clarify"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 3
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "oneOf": [
+    {
+      "required": [
+        "target"
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "read",
+            "translate",
+            "spell",
+            "numbers",
+            "summarize"
+          ]
+        }
+      }
+    },
+    {
+      "required": [
+        "options"
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "clarify"
+          ]
+        }
+      }
+    }
+  ],
+  "example": {
+    "action": "read",
+    "target": {
+      "id": "a1"
+    }
+  },
+  "_checklist": [
+    "Think Harder",
+    "Think Deeper",
+    "More Information",
+    "Check Again"
+  ]
+}

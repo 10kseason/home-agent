@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "assumptions": "Text only; bbox optional",
+    "risks": "Large candidate lists slow ranking",
+    "alternatives": "Server-side pruning",
+    "rationale": "Keep schema minimal"
+  },
+  "type": "object",
+  "required": [
+    "utterance",
+    "candidates"
+  ],
+  "properties": {
+    "utterance": {
+      "type": "string"
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "near": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "example": {
+    "utterance": "번역해",
+    "candidates": [
+      {
+        "id": "a1",
+        "text": "Hello",
+        "role": "label"
+      }
+    ]
+  },
+  "_checklist": [
+    "Think Harder",
+    "Think Deeper",
+    "More Information",
+    "Check Again"
+  ]
+}

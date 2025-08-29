@@ -22,6 +22,8 @@ import io
 import json
 import base64
 import re
+import yaml
+from pathlib import Path
 # ---- Luna Agent bridge (공통) ----
 import requests as _rq
 # 이벤트 전송 URL: Overlay 또는 Agent로 전달
@@ -83,7 +85,8 @@ try:
 except Exception:
     HAS_KEYBOARD = False
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+ROOT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config.yaml"
+LOCAL_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 
 DEFAULT_CONFIG = {
     "server_url": "http://localhost:1234/v1",
@@ -155,22 +158,33 @@ def _detect_ram_gb() -> float:
 
 
 def load_config() -> dict:
-    if os.path.exists(CONFIG_PATH):
+    cfg = DEFAULT_CONFIG.copy()
+    if ROOT_CONFIG_PATH.exists():
+        with open(ROOT_CONFIG_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        cfg.update(data.get("ocr", {}))
+        return cfg
+    if LOCAL_CONFIG_PATH.exists():
         try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            with open(LOCAL_CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            for k, v in DEFAULT_CONFIG.items():
-                if k not in data:
-                    data[k] = v
-            return data
+            cfg.update(data)
+            return cfg
         except Exception:
             pass
-    return DEFAULT_CONFIG.copy()
+    return cfg
 
 
 def save_config(cfg: dict):
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+    if ROOT_CONFIG_PATH.exists():
+        with open(ROOT_CONFIG_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        data["ocr"] = cfg
+        with open(ROOT_CONFIG_PATH, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+        return
+    os.makedirs(LOCAL_CONFIG_PATH.parent, exist_ok=True)
+    with open(LOCAL_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 

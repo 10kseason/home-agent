@@ -24,6 +24,7 @@ import base64
 import webbrowser
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
+from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Overlay.plugins.tools.security.orchestrator_hooks import (
     pre_ingest_external,
@@ -304,6 +305,7 @@ class EventHandler:
 
 # ---------------- third-party ----------------
 
+ROOT_CFG_PATH = Path(APP_DIR).resolve().parent / "config.yaml"
 CFG_PATH = os.path.join(APP_DIR, "config.yaml")
 MEMO_PATH = os.path.join(APP_DIR, "tool_memory.txt")
 
@@ -359,9 +361,18 @@ def ensure_files():
 
 
 def load_cfg() -> Dict[str, Any]:
+    cfg = DEFAULT_CFG.copy()
+    if ROOT_CFG_PATH.exists():
+        with open(ROOT_CFG_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        cfg.update(data.get("overlay", {}))
+        cfg["accessibility"] = data.get("accessibility", 0)
+        return cfg
     ensure_files()
     with open(CFG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
+    cfg.update(data)
+    return cfg
 
 
 def read_tool_memory() -> str:
@@ -1885,6 +1896,10 @@ class OverlayWindow(QtWidgets.QWidget):
             return True
         if cmd in ("/help", "/도움말"):
             self._help(); return True
+        if cmd in ("/보조모드", "/assist"):
+            self.orch.cfg["accessibility"] = 1
+            self._append("overlay", "Accessibility mode enabled")
+            return True
         if cmd in ("/대화모드", "/chat"):
             self.set_mode("chat"); return True
         if cmd in ("/대화종료", "/end"):
