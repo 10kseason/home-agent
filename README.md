@@ -63,7 +63,7 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 
 ### STT 파이프라인
 - `Whisper Tiny / Faster` : 음성 전사 (BBC 뉴스도 인식 가능)
-- `Qwen2.5-VL-7B` : 전사 결과물 한국어 번역
+- `Qwen3-2507-4B` : 전사 결과물 한국어 번역
 - 결과는 Overlay 및 `VSRG-Ts-to-KR.py (STT)` 창에 표시, **화자 분리 지원**
 
 ### 오케스트레이션 순환
