@@ -15,6 +15,6 @@ class Ctx:
         self.policy = Policy(config["policy"]["autonomy_level"])
         self.sinks = sinks_mod
 
-def load_config(path: str = "agent/config.yaml") -> Dict[str, Any]:
+def load_config(path: str = "config.yaml") -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)

@@ -30,6 +30,7 @@ import base64
 from diarizer import SpeakerDiarizer
 
 import yaml
+from pathlib import Path
 import numpy as np
 import sounddevice as sd
 import webrtcvad
@@ -225,18 +226,28 @@ class Config:
     debug: DebugCfg
     preview: PreviewCfg
 
-def load_config(path: str = "config.yaml") -> Config:
-    with open(path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+def load_config(path: str | None = None) -> Config:
+    cfg_dict: Dict[str, Any] = {}
+    if path is None:
+        root_cfg = Path(__file__).resolve().parents[1] / "config.yaml"
+        if root_cfg.exists():
+            with open(root_cfg, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            cfg_dict = data.get("stt", {})
+        else:
+            path = str(Path(__file__).resolve().with_name("config.yaml"))
+    if path is not None and not cfg_dict:
+        with open(path, "r", encoding="utf-8") as f:
+            cfg_dict = yaml.safe_load(f) or {}
 
-    cap = cfg.get("capture", {})
-    vad = cfg.get("vad", {})
-    frc = cfg.get("force", {})
-    stt = cfg.get("stt", {})
-    trn = cfg.get("translate", {})
-    ui  = cfg.get("ui", {})
-    dbg = cfg.get("debug", {})
-    prv = cfg.get("preview", {})
+    cap = cfg_dict.get("capture", {})
+    vad = cfg_dict.get("vad", {})
+    frc = cfg_dict.get("force", {})
+    stt = cfg_dict.get("stt", {})
+    trn = cfg_dict.get("translate", {})
+    ui  = cfg_dict.get("ui", {})
+    dbg = cfg_dict.get("debug", {})
+    prv = cfg_dict.get("preview", {})
 
     return Config(
         capture=CaptureCfg(
