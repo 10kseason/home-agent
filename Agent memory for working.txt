@@ -8,3 +8,8 @@
 - Runner 모듈을 단순화하여 두 단계 LLM 호출만 수행하도록 수정. LM Studio/Ollama 환경 가정 하에 동작.
 - Executor 모듈에 UIA 우선 실행과 좌표/키보드/ OCR 대체 로직이 담긴 최소 구현 추가. 실제 UIA 연동과 위험
   명령 확인 절차 고도화가 필요.
+- Context packer에 Caps 데이터클래스와 truncate/format 후보 포맷터를 추가하여 섹션별 길이 제한을 적용. 토큰 기반
+  절단 및 고급 후보 표현은 추후 구현 필요.
+- Context packer 문서화 보강 및 테스트용 배치 스크립트(run_tests.bat) 추가. 추후 실제 모듈 연동과 토큰 인식 절단 기능 개발 필요.
+- STT assist script added to capture microphone audio via Whisper and emit stt.text events for accessibility mode. Integration with full event bus and wake-word control still pending.
+- Root AGENTS.md now summarizes major folders and key files so future agents can quickly understand the repo layout; detailed tree remains in docs/REPO_STRUCTURE.md.
