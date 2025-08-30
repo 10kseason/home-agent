@@ -86,6 +86,27 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         pass
 
 
+def _notify_listening() -> None:
+    """Toast notification that STT Assist is listening."""
+    msg = "마이크 청취 중"
+    _post_event("overlay.toast", {"title": "STT", "text": msg})
+    try:
+        from agent.sinks import toast_notify
+
+        toast_notify("STT", msg)
+    except Exception:
+        pass
+
+
+def _mix_channels(pcm: bytes, channels: int) -> bytes:
+    """Mix multi-channel PCM16 to mono."""
+    if channels <= 1:
+        return bytes(pcm)
+    data = np.frombuffer(pcm, dtype=np.int16)
+    data = data.reshape(-1, channels).mean(axis=1).astype(np.int16)
+    return data.tobytes()
+
+
 @dataclass
 class AssistConfig:
     """Configuration for assistive STT."""
@@ -105,6 +126,7 @@ class AssistConfig:
     sample_rate: int = 16_000
     block_ms: int = 3_000  # transcribe every N milliseconds
     device_index: Optional[int] = None
+    device_name: Optional[str] = None
     commands: Dict[str, List[str]] = field(
         default_factory=lambda: {
             "capture": ["캡쳐", "캡처", "capture", "スクショ", "截图", "截屏"],
@@ -221,12 +243,23 @@ class SubtitleUI:
                 pass
 
 
-def _select_input_device(device_index: Optional[int]) -> Optional[int]:
+def _select_input_device(
+    device_index: Optional[int], device_name: Optional[str]
+) -> Optional[int]:
     """Return a microphone device index, auto-detecting when unspecified."""
     if device_index is not None:
         return device_index
     if sd is None:
         return None
+    try:
+        if device_name:
+            devices = sd.query_devices()  # pragma: no cover - environment dependent
+            for i, dev in enumerate(devices):
+                name = str(dev.get("name", "")).lower()
+                if device_name.lower() in name and dev.get("max_input_channels", 0) > 0:
+                    return i
+    except Exception:
+        pass
     try:
         default = sd.default.device  # type: ignore[attr-defined]
         if isinstance(default, (tuple, list)):
@@ -258,11 +291,17 @@ def run(cfg: AssistConfig) -> None:
 
     q: "queue.Queue[bytes]" = queue.Queue()
 
+    device = _select_input_device(cfg.device_index, cfg.device_name)
+    try:
+        dev_info = sd.query_devices(device)  # pragma: no cover - environment dependent
+        channels = int(dev_info.get("max_input_channels", 1)) or 1
+    except Exception:  # pragma: no cover - environment dependent
+        channels = 1
+
     def callback(indata, frames, time, status):  # pragma: no cover - realtime
-        q.put(bytes(indata))
+        q.put(_mix_channels(bytes(indata), channels))
 
     blocksize = int(cfg.sample_rate * (cfg.block_ms / 1000))
-    device = _select_input_device(cfg.device_index)
 
     def worker():  # pragma: no cover - realtime loop
         buf = bytearray()
@@ -277,10 +316,12 @@ def run(cfg: AssistConfig) -> None:
         samplerate=cfg.sample_rate,
         blocksize=blocksize,
         dtype="int16",
-        channels=1,
+        channels=channels,
         callback=callback,
         device=device,
     ):
+        _notify_listening()
+        threading.Timer(600, _notify_listening).start()
         threading.Thread(target=worker, daemon=True).start()
         ui.loop()
 

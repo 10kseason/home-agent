@@ -26,3 +26,7 @@
 - Assist mode now keeps STT assist alive until assist.off, ignoring stt.stop events and auto-restarting if the process exits. OCR watchdogs and wake-word triggers still need implementation.
 - STT assist now detects configured voice commands and emits cmd.detected events; OCR/LLM orchestration and other assist features remain.
 - Overlay config and tool list now include STT/OCR Assist entries, auto-switching the tool-calling model between qwen/qwen3-4b-thinking-2507 and qwen/qwen3-4b-2507 based on assist mode, and showing "Luna Overlay v9 - Mode : Assist" when enabled.
+- STT assist configuration refined: explicit sample rate, chunk size, and optional device name/index for reliable microphone selection. Added tests for device name matching.
+- OCR Assist now loads a detailed Assist-config for monitor selection, region cropping, and PaddleOCR options; full ROI capture and advanced OCR features still pending.
+- STT assist now issues toast notifications at start and again after 10 minutes to indicate microphone capture, and mixes all input channels so every microphone is heard. Wake-word triggers and privacy refinements remain.
+- Assist mode can now be toggled via `/assist on|off` or persisted through `config.yaml`'s `accessibility` flag; overlay broadcasts `assist.on/off` events and updates the config so agent and overlay launch in assist mode when enabled.

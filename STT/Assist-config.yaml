@@ -15,6 +15,10 @@ stt:
   compute_type: int8     # CPU friendly
   language: auto         # auto-detect ko/en/ja/zh
   vad: silero            # or webrtcvad
+  sample_rate: 16000     # Hz
+  block_ms: 3000         # audio chunk in milliseconds
+  device_index: null     # set to an int to force a specific device
+  device_name: null      # optional substring match for device name
   chunk_sec: 7
   chunk_overlap_sec: 0.5
   beam_size: 3

@@ -3,7 +3,13 @@ Captures the full screen and posts recognized text to the agent event bus."""
 from __future__ import annotations
 
 import os
-from typing import List
+
+import argparse
+from dataclasses import dataclass
+from typing import List, Optional
+
+import pathlib
+import yaml
 
 import numpy as np
 from PIL import Image
@@ -40,19 +46,77 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         pass
 
 
-def _capture_screen() -> Image.Image:
+@dataclass
+class OCRAssistConfig:
+    """Configuration for assistive OCR capture."""
+
+    monitor: int = 1  # 1-based monitor index
+    region: Optional[List[int]] = None  # [left, top, width, height]
+    lang: str = "korean"
+    use_angle_cls: bool = True
+    det_model_dir: Optional[str] = None
+    rec_model_dir: Optional[str] = None
+    device: str = "cpu"
+    announce_text: str = "찍었습니다."
+    event_url: Optional[str] = None
+    event_key: Optional[str] = None
+
+
+def load_config(path: str | None = None) -> OCRAssistConfig:
+    """Load OCR assist configuration from YAML."""
+
+    if path is None:
+        default = pathlib.Path(__file__).with_name("Assist-config.yaml")
+        path = str(default) if default.exists() else None
+
+    data: dict = {}
+    if path:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+        cap = raw.get("capture") or {}
+        data["monitor"] = cap.get("monitor", 1)
+        data["region"] = cap.get("region")
+        ocr = raw.get("ocr") or {}
+        data.update(ocr)
+        assist = raw.get("assist") or {}
+        if "announce_text" in assist:
+            data["announce_text"] = assist["announce_text"]
+        event = raw.get("event") or {}
+        data["event_url"] = event.get("url")
+        data["event_key"] = event.get("key")
+    return OCRAssistConfig(**data)
+
+
+def _capture_screen(cfg: OCRAssistConfig) -> Image.Image:
     with mss() as sct:
-        shot = sct.grab(sct.monitors[1])
+        monitor = sct.monitors[cfg.monitor]
+        if cfg.region:
+            left, top, width, height = cfg.region
+            region = {
+                "left": monitor["left"] + left,
+                "top": monitor["top"] + top,
+                "width": width,
+                "height": height,
+            }
+            shot = sct.grab(region)
+        else:
+            shot = sct.grab(monitor)
         img = Image.frombytes("RGB", shot.size, shot.rgb)
         return img
 
 
-def _run_ocr(img: Image.Image) -> str:
+def _run_ocr(img: Image.Image, cfg: OCRAssistConfig) -> str:
     if PaddleOCR is None:
         raise RuntimeError("paddleocr is not installed")
-    ocr = PaddleOCR(use_angle_cls=True, lang="korean")
+    ocr = PaddleOCR(
+        use_angle_cls=cfg.use_angle_cls,
+        lang=cfg.lang,
+        det_model_dir=cfg.det_model_dir,
+        rec_model_dir=cfg.rec_model_dir,
+        device=cfg.device,
+    )
     np_img = np.array(img)
-    result = ocr.ocr(np_img, cls=True)
+    result = ocr.ocr(np_img, cls=cfg.use_angle_cls)
     lines: List[str] = []
     for line in result:
         for item in line:
@@ -60,14 +124,25 @@ def _run_ocr(img: Image.Image) -> str:
     return "\n".join(lines).strip()
 
 
-
 def main() -> None:
-    img = _capture_screen()
-    text = _run_ocr(img)
+    parser = argparse.ArgumentParser(description="Assistive screenshot OCR")
+    parser.add_argument("--config", help="Path to Assist-config.yaml", default=None)
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    global _EVENT_URL, _EVENT_KEY
+    if cfg.event_url:
+        _EVENT_URL = cfg.event_url
+    if cfg.event_key:
+        _EVENT_KEY = cfg.event_key
+
+    img = _capture_screen(cfg)
+    text = _run_ocr(img, cfg)
     if text:
         _post_event("ocr.text", {"text": text, "source": "paddle_assist"})
         print(text)
-        speak("찍었습니다.", lang="ko")
+        if cfg.announce_text:
+            speak(cfg.announce_text, lang="ko")
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
