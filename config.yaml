@@ -148,6 +148,33 @@ overlay:
       kind: "process_stop"
       id: "stt"
       method: "terminate"
+    stt_assist.start:
+      kind: "process"
+      id: "stt"
+      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+      args: ["D:/jip/home-agent/STT/assist.py"]
+      cwd: "D:/jip/home-agent/STT"
+      no_console: true
+      shell: true
+      env:
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+    stt_assist.stop:
+      kind: "process_stop"
+      id: "stt"
+      method: "terminate"
+    ocr_assist.start:
+      kind: "process"
+      id: "ocr"
+      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+      args: ["D:/jip/home-agent/OCR/OCR-Assist.py"]
+      cwd: "D:/jip/home-agent/OCR"
+      no_console: true
+      env:
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+    ocr_assist.stop:
+      kind: "process_stop"
+      id: "ocr"
+      method: "terminate"
     web.search:
       kind: "process"
       id: "web"

@@ -19,3 +19,4 @@
 - In accessibility mode, the overlay now auto-starts microphone STT when minimized to the system tray and stops it when the window is restored, keeping assistive voice control active in the background.
 - Centralized configuration: merged agent, overlay, STT, and OCR settings into root config.yaml so all components share a single config source.
 - Added bilingual inline comments to config.yaml and created CONFIGURATION.md for English/Korean docs.
+- Assist mode now launches assist-specific STT and PaddleOCR modules via agent events, with periodic status logging and an /assist/status endpoint. Voice-command triggers and debug capture remain to be implemented.

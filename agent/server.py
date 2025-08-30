@@ -48,35 +48,32 @@ async def _terminate_proc(proc, name="overlay", timeout: float = 3.0):
     except Exception as e:
         logger.debug(f"[{name}] terminate error: {e}")
 
-def _spawn_stt(cfg):
-    stt = (cfg or {}).get("stt", {}) or {}
-    if not stt.get("enable", True):
-        logger.info("[stt] disabled")
+
+def _spawn_tool(cfg, key: str):
+    tools = (cfg or {}).get("tools", {}) or {}
+    spec = tools.get(key, {}) or {}
+    if spec.get("kind") != "process":
+        logger.info(f"[tool:{key}] disabled")
         return None
 
-    py = stt.get("python") or sys.executable
-    script = stt.get("script")
-    if not script or not os.path.exists(script):
-        logger.warning("[stt] script not set or not found; skip auto-launch")
-        return None
-
-    cwd = stt.get("cwd") or os.path.dirname(script)
-    args = stt.get("args", []) or []
+    py = spec.get("command") or sys.executable
+    args = spec.get("args", []) or []
+    cwd = spec.get("cwd") or os.getcwd()
 
     creationflags = 0
-    if platform.system() == "Windows" and stt.get("no_console", False):
+    if platform.system() == "Windows" and spec.get("no_console", False):
         creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
     env = os.environ.copy()
-    env.update(stt.get("env", {}) or {})
+    env.update(spec.get("env", {}) or {})
 
-    cmd = [py, script, *args]
+    cmd = [py, *args]
     try:
         proc = subprocess.Popen(cmd, cwd=cwd, env=env, creationflags=creationflags)
-        logger.info(f"[stt] launched pid={proc.pid} cmd={cmd}")
+        logger.info(f"[tool:{key}] launched pid={proc.pid} cmd={cmd}")
         return proc
     except Exception as e:
-        logger.error(f"[stt] launch failed: {e}")
+        logger.error(f"[tool:{key}] launch failed: {e}")
         return None
 
 def create_app(ctx, plugins=None):
@@ -85,6 +82,9 @@ def create_app(ctx, plugins=None):
         # Startup
         app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
         app.state.stt_proc = None
+        app.state.ocr_proc = None
+        app.state.assist_mode = bool(getattr(ctx, "assist_mode", False))
+        app.state.assist_task = None
         # Watch overlay process so the agent exits when overlay closes
         if app.state.overlay_proc:
             async def _overlay_watch():
@@ -118,13 +118,62 @@ def create_app(ctx, plugins=None):
                     if app.state.stt_proc and app.state.stt_proc.poll() is None:
                         logger.info("[stt] already running")
                     else:
-                        app.state.stt_proc = _spawn_stt(getattr(ctx, "config", {}))
+                        key = "stt_assist.start" if app.state.assist_mode else "stt.start"
+                        app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), key)
                 elif ev.type == "stt.stop":
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
                     app.state.stt_proc = None
 
             ctx.bus.subscribe("stt.", _stt_handler)
             app.state._plugin_unsubs.append(("stt.", _stt_handler))
+
+            async def _ocr_handler(ev):
+                if ev.type == "ocr.start":
+                    if app.state.ocr_proc and app.state.ocr_proc.poll() is None:
+                        logger.info("[ocr] already running")
+                    else:
+                        key = "ocr_assist.start" if app.state.assist_mode else "ocr.start"
+                        app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), key)
+                elif ev.type == "ocr.stop":
+                    await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                    app.state.ocr_proc = None
+
+            ctx.bus.subscribe("ocr.", _ocr_handler)
+            app.state._plugin_unsubs.append(("ocr.", _ocr_handler))
+
+            async def _assist_handler(ev):
+                if ev.type == "assist.on":
+                    app.state.assist_mode = True
+                    ctx.assist_mode = True
+                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt_assist.start")
+                    app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "ocr_assist.start")
+
+                    if app.state.assist_task is None:
+                        async def _ticker():
+                            while app.state.assist_mode:
+                                logger.info("OK 음성 입력 도우미 켜져있음")
+                                await asyncio.sleep(30)
+                        app.state.assist_task = asyncio.create_task(_ticker())
+                elif ev.type == "assist.off":
+                    app.state.assist_mode = False
+                    ctx.assist_mode = False
+                    task = getattr(app.state, "assist_task", None)
+                    if task:
+                        task.cancel()
+                        try:
+                            await task
+                        except Exception:
+                            pass
+                    app.state.assist_task = None
+                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt.start")
+                    app.state.ocr_proc = None
+
+            ctx.bus.subscribe("assist.", _assist_handler)
+            app.state._plugin_unsubs.append(("assist.", _assist_handler))
 
             # Start event bus loop
             app.state.bus_task = asyncio.create_task(ctx.bus.run())
@@ -177,6 +226,26 @@ def create_app(ctx, plugins=None):
             except Exception as e:
                 logger.debug(f"[lifespan] stt terminate error: {e}")
             app.state.stt_proc = None
+
+            # Shutdown OCR
+            try:
+                await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+            except Exception as e:
+                logger.debug(f"[lifespan] ocr terminate error: {e}")
+            app.state.ocr_proc = None
+
+            # Cancel assist ticker
+            try:
+                task = getattr(app.state, "assist_task", None)
+                if task:
+                    task.cancel()
+                    try:
+                        await task
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.debug(f"[lifespan] assist task cancel error: {e}")
+            app.state.assist_task = None
 
     app = FastAPI(title="Luna Local Agent", lifespan=lifespan)
 
@@ -267,5 +336,9 @@ def create_app(ctx, plugins=None):
         proc = getattr(app.state, "overlay_proc", None)
         running = bool(proc and proc.poll() is None)
         return {"ok": True, "running": running, "pid": (proc.pid if running else None)}
+
+    @app.get("/assist/status")
+    async def assist_status():
+        return {"ok": True, "assist_mode": bool(getattr(app.state, "assist_mode", False))}
 
     return app
