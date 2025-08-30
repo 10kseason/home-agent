@@ -17,13 +17,14 @@ Whisper weights.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import argparse
 import queue
 import os
 import threading
 import time
-from typing import Callable, Optional
+from typing import Callable, List, Optional
+import yaml
 
 import numpy as np
 try:
@@ -73,7 +74,20 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
 
 @dataclass
 class AssistConfig:
-    model_size: str = "tiny.en"
+    """Configuration for assistive STT."""
+
+    engine: str = "faster-whisper"
+    model: str = "small"
+    compute_type: str = "int8"
+    language: str = "auto"
+    vad: str = "silero"
+    chunk_sec: float = 7.0
+    chunk_overlap_sec: float = 0.5
+    beam_size: int = 3
+    condition_on_previous_text: bool = False
+    temperature_fallback: List[float] = field(
+        default_factory=lambda: [0.0, 0.2, 0.4]
+    )
     sample_rate: int = 16_000
     block_ms: int = 3_000  # transcribe every N milliseconds
     device_index: Optional[int] = None
@@ -97,7 +111,21 @@ class AssistTranscriber:
     def transcribe(self, pcm16: bytes) -> str:
         """Transcribe a chunk of PCM16 mono audio."""
         audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
-        segments, _ = self.model.transcribe(audio, language="en")
+        language = None if self.cfg.language == "auto" else self.cfg.language
+        kwargs = {
+            "beam_size": self.cfg.beam_size,
+            "condition_on_previous_text": self.cfg.condition_on_previous_text,
+            "temperature": self.cfg.temperature_fallback[0]
+            if self.cfg.temperature_fallback
+            else 0.0,
+            "vad_filter": bool(self.cfg.vad),
+            "chunk_length": self.cfg.chunk_sec,
+            "chunk_overlap": self.cfg.chunk_overlap_sec,
+        }
+        try:
+            segments, _ = self.model.transcribe(audio, language=language, **kwargs)
+        except TypeError:
+            segments, _ = self.model.transcribe(audio, language=language)
         text = "".join(seg.text for seg in segments).strip()
         if text:
             payload = {
@@ -190,7 +218,7 @@ def run(cfg: AssistConfig) -> None:
     if WhisperModel is None:
         raise RuntimeError("faster-whisper is not installed")
 
-    model = WhisperModel(cfg.model_size, device="auto", compute_type="int8")
+    model = WhisperModel(cfg.model, device="cpu", compute_type=cfg.compute_type)
     ui = SubtitleUI()
     transcriber = AssistTranscriber(model, _post_event, cfg, ui)
 
@@ -225,18 +253,24 @@ def run(cfg: AssistConfig) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assistive microphone STT")
-    parser.add_argument("--model", default="tiny.en", help="Whisper model size")
+    parser.add_argument("--config", help="Path to Assist-config.yaml", default=None)
+    parser.add_argument("--model", help="Whisper model size", default="small")
     parser.add_argument("--device-index", type=int, default=None, help="Input device index")
     parser.add_argument(
         "--block-ms", type=int, default=3000, help="Chunk size in milliseconds"
     )
     args = parser.parse_args()
 
-    cfg = AssistConfig(
-        model_size=args.model,
-        block_ms=args.block_ms,
-        device_index=args.device_index,
-    )
+    if args.config:
+        with open(args.config, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        cfg = AssistConfig(**(data.get("stt") or {}))
+    else:
+        cfg = AssistConfig(
+            model=args.model,
+            block_ms=args.block_ms,
+            device_index=args.device_index,
+        )
     run(cfg)
 
 

@@ -151,8 +151,8 @@ overlay:
     stt_assist.start:
       kind: "process"
       id: "stt"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/STT/assist.py"]
+      command: "D:/jip/home-agent/STT/assist_start.bat"
+      args: []
       cwd: "D:/jip/home-agent/STT"
       no_console: true
       shell: true
@@ -313,6 +313,21 @@ stt:
     model: "tiny.en"
     compute_type: "int8"
     rms_gate_dbfs: -35.0
+
+# TTS settings
+# TTS 설정
+tts:
+  backend_order: ["espeak-ng"]
+  espeak_ng:
+    voices: { ko: "ko", en: "en-us", ja: "ja", zh: "zh" }
+    rate: "+10"
+    pitch: 0
+    volume: 100
+    word_gap_ms: 20
+    sample_rate: 22050
+    chunk_ms: 1200
+    buffer_ms: 300
+    wav_cache: true
 
 # Voice command settings
 # 음성 명령 설정

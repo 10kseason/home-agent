@@ -3,13 +3,13 @@ Captures the full screen and posts recognized text to the agent event bus."""
 from __future__ import annotations
 
 import os
-import io
 from typing import List
 
 import numpy as np
 from PIL import Image
 from mss import mss
 import requests
+from tools.tts_espeak import speak
 
 try:  # PaddleOCR is heavy; import lazily
     from paddleocr import PaddleOCR
@@ -60,12 +60,14 @@ def _run_ocr(img: Image.Image) -> str:
     return "\n".join(lines).strip()
 
 
+
 def main() -> None:
     img = _capture_screen()
     text = _run_ocr(img)
     if text:
         _post_event("ocr.text", {"text": text, "source": "paddle_assist"})
         print(text)
+        speak("찍었습니다.", lang="ko")
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
