@@ -1,3 +1,6 @@
+Start Here
+- 반드시 `홈 에이전트 첫 업데이트 용 장애보조 모드 계획서..txt`를 읽고 작업을 시작하십시오.
+
 Assumptions / Risks / Alternatives / Rationale
 - Home-agent accessibility mode skeleton exists but modules are placeholders; risk of misalignment with UIA/OCR integration.
 - Low-VRAM profile is assumed; alternative is to tune `config.yaml` if GPU changes.
