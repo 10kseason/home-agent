@@ -545,6 +545,27 @@ class PluginAwareOrchestrator:
         self.plugin_manager = PluginManager(config)
 
         self.assist_mode = self._check_assist_mode(config)
+
+        config.setdefault("llm_tools", {})
+        config["llm_tools"]["model"] = (
+            "qwen/qwen3-4b-thinking-2507" if self.assist_mode else "qwen/qwen3-4b-2507"
+        )
+
+        if self.assist_mode:
+            allowed = [
+                name
+                for name in self.plugin_manager.handlers.keys()
+                if name.startswith("stt_assist") or name.startswith("ocr_assist")
+            ]
+            self.plugin_manager.handlers = {
+                k: v for k, v in self.plugin_manager.handlers.items() if k in allowed
+            }
+            self.plugin_manager.tools_schema = [
+                s
+                for s in self.plugin_manager.tools_schema
+                if s.get("function", {}).get("name") in allowed
+            ]
+
         self.tool_memory = self._load_tool_memory(self.assist_mode)
         self.history_tools = [{"role": "system", "content": self._system_prompt_tools()}]
         self.history_chat = [{"role": "system", "content": self._system_prompt_chat()}]
@@ -631,7 +652,7 @@ def create_enhanced_overlay_config():
     return {
         "llm_tools": {
             "endpoint": "http://127.0.0.1:1234/v1",
-            "model": "qwen3-4b-instruct",
+            "model": "qwen/qwen3-4b-2507",
             "api_key": "",
             "timeout_seconds": 60
         },

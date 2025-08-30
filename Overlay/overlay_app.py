@@ -312,7 +312,7 @@ MEMO_PATH_ASSIST = os.path.join(APP_DIR, "Tool_memory_Assist.txt")
 
 # ---------------- defaults ----------------
 DEFAULT_CFG = {
-    "llm_tools": {"endpoint": "http://127.0.0.1:1234/v1", "model": "qwen3-4b-instruct", "api_key": "", "timeout_seconds": 60},
+    "llm_tools": {"endpoint": "http://127.0.0.1:1234/v1", "model": "qwen/qwen3-4b-2507", "api_key": "", "timeout_seconds": 60},
     "llm_chat":  {"endpoint": "http://127.0.0.1:1234/v1", "model": "qwen3-14b-instruct", "api_key": "", "timeout_seconds": 60},
     "llm_vision": {"endpoint": "http://127.0.0.1:1234/v1", "model": "gemma-3-12b-it-qat", "api_key": "", "timeout_seconds": 60},
     "agent": {"health_url": "http://127.0.0.1:8765/health", "event_url": "http://127.0.0.1:8765/event", "health_interval_seconds": 2, "health_fail_quit_count": 3},
@@ -585,8 +585,14 @@ class Orchestrator:
 
         # detect assistive mode from agent server
         self.assist_mode = self._check_assist_mode()
+
+        cfg.setdefault("llm_tools", {})
+        cfg["llm_tools"]["model"] = (
+            "qwen/qwen3-4b-thinking-2507" if self.assist_mode else "qwen/qwen3-4b-2507"
+        )
+
         if self.assist_mode and self.window:
-            self.window.setWindowTitle("Luna Overlay (Assist mode)")
+            self.window.setWindowTitle("Luna Overlay v9 - Mode : Assist")
             if hasattr(self.window, "_update_title"):
                 self.window._update_title()
 

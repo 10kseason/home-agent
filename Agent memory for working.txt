@@ -25,3 +25,4 @@
 - Overlay detects assist mode via the agent's /assist/status endpoint, loading Tool_memory_Assist.txt and limiting tools to stt_assist/ocr_assist while showing an "Assist mode" title. Config now defaults tool-calling and translation to local Qwen3 4B models. Voice command triggers and deeper assist features remain outstanding.
 - Assist mode now keeps STT assist alive until assist.off, ignoring stt.stop events and auto-restarting if the process exits. OCR watchdogs and wake-word triggers still need implementation.
 - STT assist now detects configured voice commands and emits cmd.detected events; OCR/LLM orchestration and other assist features remain.
+- Overlay config and tool list now include STT/OCR Assist entries, auto-switching the tool-calling model between qwen/qwen3-4b-thinking-2507 and qwen/qwen3-4b-2507 based on assist mode, and showing "Luna Overlay v9 - Mode : Assist" when enabled.
