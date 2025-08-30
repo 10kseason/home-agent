@@ -14,6 +14,7 @@
 
 압축을 풀고 `처음 사용자용 실행 및 설치.bat`를 실행합니다. LM Studio가 설치되어 있어야 하며
 **모든 설정은 배치 파일과 동일한 위치의 `config.yaml`에서 관리됩니다. OCR, STT, Overlay 섹션에 자신에게 맞는 모델과 경로를 입력하세요. 하드웨어 사양에 따라 모델 종류나 옵션을 바꿔 써도 무방합니다.**
+**All settings are handled in the `config.yaml` next to the batch files. Provide model paths for the OCR, STT, and Overlay sections and adjust options for your hardware. See `docs/CONFIGURATION.md` for details.**
 
 📦 필요 모델 목록
 Qwen2.5-VL-7B (고속 OCR+한국어 번역)

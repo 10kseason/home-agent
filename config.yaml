@@ -1,76 +1,373 @@
+# Metadata
+# 메타데이터
 _meta:
   assumptions: UIA accessible; OCR for fallback only
   risks: OCR misorder and barge_in false positives
   alternatives: full_screen_ocr or disable_barge_in
   rationale: latency and privacy for 8GB VRAM
+# Global accessibility flags
+# 전역 접근성 플래그
 accessibility: 0
+# Rolling window TTLs
+# 롤링 윈도우 TTL 설정
 windows:
   stt: {ttl_ms: 4000, max: 10}
   screen: {ttl_ms: 3000, max: 5}
   text: {ttl_ms: 30000, max: 20}
   logs: {ttl_ms: 60000, max: 50}
+# Focus mode ROI
+# 포커스 모드 ROI
 focus_mode:
   roi: {scale: 1.0, debounce_ms: 120}
+
+# Agent server configuration
+# 에이전트 서버 설정
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+policy:
+  autonomy_level: "auto"
+  batch_seconds: 300
+
+translate:
+  provider: "lmstudio"
+  endpoint: "http://127.0.0.1:1234/v1"
+  model: "qwen/qwen3-8b-instruct"
+  api_key: ""
+  max_refine_chars: 6500
+  severity_threshold: 2
+
+sinks:
+  toast: true
+  log_file: "agent_output.log"
+
+limits:
+  dedup_window_seconds: 3600
+  max_queue_size: 1000
+
+# Overlay application and launch settings
+# 오버레이 애플리케이션 및 실행 설정
 overlay:
+  # Visual style
+  # 시각적 스타일
   highlight_color: '#FFD700'
   dim: 0.18
+  # Overlay launch
+  # 오버레이 실행
+  enable: true
+  python: "D:/jip/home-agent/.venv/Scripts/python.exe"
+  script: "D:/jip/home-agent/Overlay/overlay_app.py"
+  cwd: "D:/jip/home-agent/Overlay"
+  args: []
+  # Overlay app configuration
+  # 오버레이 앱 설정
+  llm_tools:
+    endpoint: "http://127.0.0.1:1234/v1"
+    model: "qwen/qwen3-4b-2507"
+    api_key: "lm-studio"
+    timeout_seconds: 60
+    max_new_tokens: 2000
+    temperature: 0.0
+  llm_chat:
+    endpoint: "http://127.0.0.1:1234/v1"
+    model: "qwen3-14b"
+    api_key: "lm-studio"
+    timeout_seconds: 60
+    max_new_tokens: 8096
+    temperature: 0.2
+  llm_vision:
+    endpoint: "http://127.0.0.1:1234/v1"
+    model: "qwen/qwen2.5-vl-7b"
+    api_key: "lm-studio"
+    timeout_seconds: 60
+    max_new_tokens: 8096
+    temperature: 0.2
+  llm_summary:
+    endpoint: "http://127.0.0.1:1234/v1"
+    model: "openai/gpt-oss-20b"
+    api_key: "lm-studio"
+    timeout_seconds: 120
+    max_new_tokens: 25000
+    temperature: 0.1
+  router:
+    enable: false
+    mode: "both"
+    chat_triggers:
+      - "(?i)\\bweather\\b"
+      - "날씨|예보"
+      - "(?i)\\bcnn\\b|\\bbbc\\b|\\bytm\\b"
+      - "뉴스 ?요약"
+      - "web ?search|웹 ?검색"
+  proxy:
+    enable: true
+    host: "127.0.0.1"
+    port: 8350
+  ui:
+    width: 640
+    height: 500
+    agent_handoff_on: true
+    always_on_top: true
+    show_on_start: true
+    opacity: 0.92
+  agent:
+    enable_health_watch: true
+    health_url: "http://127.0.0.1:8765/health"
+    event_url: "http://127.0.0.1:8765/event"
+    health_interval_seconds: 5
+    health_fail_quit_count: 6
+  debug:
+    overlay_echo_raw: true
+    log_events: true
+    connection_test: true
+  tools:
+    ocr.start:
+      kind: "process"
+      id: "ocr"
+      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+      args: ["D:/jip/home-agent/OCR/main.py"]
+      cwd: "D:/jip/home-agent/OCR"
+      no_console: true
+      env:
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+    ocr.stop:
+      kind: "process_stop"
+      id: "ocr"
+      method: "terminate"
+    stt.start:
+      kind: "process"
+      id: "stt"
+      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+      args: ["D:/jip/home-agent/STT/VSRG-Ts-to-kr.py"]
+      cwd: "D:/jip/home-agent/STT"
+      no_console: true
+      shell: true
+      env:
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+    stt.stop:
+      kind: "process_stop"
+      id: "stt"
+      method: "terminate"
+    web.search:
+      kind: "process"
+      id: "web"
+      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+      args:
+        - "D:/jip/home-agent/Overlay/plugins/web_search.py"
+        - "--query"
+        - "{q}"
+        - "--topk"
+        - "{k}"
+        - "--summarize"
+        - "--post"
+      cwd: "D:/jip/home-agent/Overlay/plugins"
+      no_console: false
+      env:
+        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+        WEB_SEARCH_REGION: "ko-KR"
+        WEB_SEARCH_LOCATION: "Busan, South Korea"
+        WEB_SEARCH_DEFAULT_TOPK: "15"
+        WEB_SEARCH_MAX_CHARS: "12000"
+        WEB_SEARCH_MAX_SENTENCES: "10"
+        WEB_SEARCH_MAX_FETCH: "6"
+  llm:
+    endpoint: "http://127.0.0.1:11434/v1"
+    model: "qwen3-14b"
+  llm_tools_small:
+    endpoint: "http://127.0.0.1:11434/v1"
+    model: "qwen/qwen3-4b-2507"
+  llm_tools_chat:
+    endpoint: "http://127.0.0.1:11434/v1"
+    model: "openai/gpt-oss-20b"
+  plugins:
+    SecurityPlugin: {enabled: true}
+    SchedulePlugin: {enabled: true, timezone: "Asia/Seoul"}
+    WebPlugin: {enabled: true}
+    KnowledgePlugin: {enabled: true}
+
+# OCR settings
+# OCR 설정
 ocr:
+  server_url: "http://localhost:1234/v1"
+  api_key: "lm-studio"
+  ocr_model: "qwen/qwen2.5-vl-7b"
+  translate_model: "qwen/qwen3-8b"
+  fast_vlm_mode: false
+  target_language: "Korean"
+  hotkey: "ctrl+alt+o"
+  copy_to_clipboard: true
+  notify_on_finish: true
+  notify_content: "translation"
+  show_intermediate_ocr: false
+  show_result_window: false
+  show_result_popup: true
+  popup_content: "translation"
   engine: paddle
   languages: ['ko', 'en', 'ja', 'zh']
   topk: 5
   conf_threshold: 0.6
+
+# STT settings
+# STT 설정
 stt:
-  backend: local
-  model: small.en
+  # Audio capture settings
+  # 오디오 캡처 설정
+  capture:
+    mode: "auto"
+    device_index: 56
+    device_name: ""
+    apps: ["Discord.exe", "msedge.exe", "firefox.exe", "chrome.exe"]
+    sample_rate: 16000
+    block_ms: 20
+    channels: 1
+    dtype: "float32"
+  # Voice activity detection
+  # 음성 활동 감지
+  vad:
+    aggressiveness: 3
+    silence_pad_ms: 400
+    max_segment_ms: 9000
+  # Forced speech detection
+  # 강제 음성 감지
+  force:
+    enable: true
+    rms_speech_threshold_dbfs: -33.0
+    min_forced_segment_ms: 2000
+    sustained_loud_ms: 7000
+    max_buffer_ms: 20000
+  # Speech-to-text engine
+  # 음성-텍스트 엔진
+  stt:
+    backend: "local"
+    model: "small.en"
+    compute_type: "auto"
+    language: "en"
+    beam_size: 5
+    vad_filter: true
+    server_url: "http://127.0.0.1:8008/v1/transcribe-raw"
+  # Translation parameters
+  # 번역 매개변수
+  translate:
+    enable: true
+    url: "http://127.0.0.1:1234/v1/chat/completions"
+    model: "HyperCLOVAX-SEED-Text-Instruct-1.5B"
+    temperature: 0.2
+    max_tokens: 586
+    system_prompt: |
+      You are a concise, natural Korean translator.
+      Translate the following English text into a single, short Korean sentence.
+      Keep meaning faithful; preserve tone (casual vs. formal). No extra commentary.
+      Output ONLY the Korean translation.
+  # User interface options
+  # 사용자 인터페이스 옵션
+  ui:
+    enable: true
+    font_family: "Malgun Gothic"
+    font_size_en: 14
+    font_size_ko: 16
+    width: 980
+    height: 260
+    topmost: true
+    theme_bg: "#101316"
+    theme_fg: "#E6E6E6"
+    accent_fg: "#9ADCF8"
+  # Debug controls
+  # 디버그 제어
+  debug:
+    log_segments: true
+    write_wav_segments: false
+    list_devices_on_start: false
+  # Preview inference
+  # 미리보기 추론
+  preview:
+    enable: true
+    every_ms: 900
+    window_ms: 4000
+    model: "tiny.en"
+    compute_type: "int8"
+    rms_gate_dbfs: -35.0
+
+# Voice command settings
+# 음성 명령 설정
 voice:
   synonyms:
     stop: ['멈춰', '정지']
     next: ['다음', '넘겨']
     translate: ['번역', '해석']
   dangerous: ['삭제', '비우', '전송', '구매', '결제']
+
+# LLM token budget
+# LLM 토큰 예산
 llm_budget:
   max_tokens: 2048
   timeout_ms: 600
   retry: 1
+
+# Thinking token budget
+# 사고 토큰 예산
 thinking_budget:
   nlu_intent: {default: 96, barge_in: 48}
   selection_disambiguation: {default: 256, barge_in: 128}
   translate_faithful: {default: 192, barge_in: 96}
   summarize_short: {default: 256, barge_in: 128}
   macro_plan: {default: 384, barge_in: 192}
+
+# Answer token budget
+# 응답 토큰 예산
 answer_budget:
   nlu_intent: {default: 96, barge_in: 48}
   selection_disambiguation: {default: 128, barge_in: 64}
   translate_faithful: {default: 192, barge_in: 96}
   summarize_short: {default: 128, barge_in: 64}
   macro_plan: {default: 192, barge_in: 96}
+
+# Ranking configuration
+# 순위 계산 설정
 ranking:
   weights: {text: 0.52, role: 0.18, near: 0.20, spatial: 0.10, disabled: -0.05}
   topk_for_llm: 5
+
+# Translation safeguards
+# 번역 안전장치
 translation:
   preserve: [NUMBER, DATE, URL, EMAIL, UNIT, CURRENCY, CODE]
   escalate_if:
     preserve_failed: '>=1'
     negations: '>=2'
     policy_keywords: '>=1'
+
+# Barge-in control
+# 바지인 제어
 barge_in:
   aec: true
   safety_gate_ms: 200
+
+# Executor behavior
+# 실행기 동작
 executor:
   clarify_once: true
   confirm_on_danger: true
   confirm_requires_wake: true
+
+# Privacy rules
+# 프라이버시 규칙
 privacy:
   block_roles: ['password', 'secure']
   buffer_ttl_ms: 60000
   tokenization: true
+
+# Performance profiles
+# 성능 프로필
 profiles:
   low_vram:
     llm_budget: {max_tokens: 1200, snapshot: 2}
     ranking: {topk_for_llm: 12}
     ocr: {topk: 12}
+
 # Checklist:
+# 체크리스트:
 # - [x] Think Harder
 # - [x] Think Deeper
 # - [x] More Information
 # - [x] Check Again
+
