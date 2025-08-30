@@ -308,6 +308,7 @@ class EventHandler:
 ROOT_CFG_PATH = Path(APP_DIR).resolve().parent / "config.yaml"
 CFG_PATH = os.path.join(APP_DIR, "config.yaml")
 MEMO_PATH = os.path.join(APP_DIR, "tool_memory.txt")
+MEMO_PATH_ASSIST = os.path.join(APP_DIR, "Tool_memory_Assist.txt")
 
 # ---------------- defaults ----------------
 DEFAULT_CFG = {
@@ -358,6 +359,9 @@ def ensure_files():
     if not os.path.exists(MEMO_PATH):
         with open(MEMO_PATH, "w", encoding="utf-8") as f:
             f.write(DEFAULT_MEMORY)
+    if not os.path.exists(MEMO_PATH_ASSIST):
+        with open(MEMO_PATH_ASSIST, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_MEMORY)
 
 
 def load_cfg() -> Dict[str, Any]:
@@ -375,9 +379,10 @@ def load_cfg() -> Dict[str, Any]:
     return cfg
 
 
-def read_tool_memory() -> str:
+def read_tool_memory(assist_mode: bool = False) -> str:
+    path = MEMO_PATH_ASSIST if assist_mode else MEMO_PATH
     try:
-        with open(MEMO_PATH, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return f.read()
     except Exception:
         return ""
@@ -577,15 +582,22 @@ class Orchestrator:
     def __init__(self, cfg: Dict[str, Any], window=None):
         self.cfg = cfg
         self.window = window  # OverlayWindow 참조
-        self.tool_memory = read_tool_memory()
+
+        # detect assistive mode from agent server
+        self.assist_mode = self._check_assist_mode()
+        if self.assist_mode and self.window:
+            self.window.setWindowTitle("Luna Overlay (Assist mode)")
+            if hasattr(self.window, "_update_title"):
+                self.window._update_title()
+
+        self.tool_memory = read_tool_memory(self.assist_mode)
         self.history_tools: List[Dict[str, str]] = [{"role": "system", "content": self._system_prompt_tools()}]
         self.history_chat:  List[Dict[str, str]] = [{"role": "system", "content": self._system_prompt_chat()}]
         self.procs: Dict[str, subprocess.Popen] = {}
         self.lock = threading.Lock()
-        self.tool_handlers = TOOL_HANDLERS
 
         cfg.setdefault('assist_debug', 0)
-        
+
         # defaults for tool endpoints
         cfg.setdefault('tool_endpoints', {})
         te = cfg['tool_endpoints']
@@ -599,11 +611,35 @@ class Orchestrator:
         tools_map.setdefault('ocr.stop',  te['ocr']['event_url'])
         tools_map.setdefault('stt.start', te['stt']['event_url'])
         tools_map.setdefault('stt.stop',  te['stt']['event_url'])
+        tools_map.setdefault('stt_assist.start', te['stt']['event_url'])
+        tools_map.setdefault('stt_assist.stop',  te['stt']['event_url'])
+        tools_map.setdefault('ocr_assist.start', te['ocr']['event_url'])
+        tools_map.setdefault('ocr_assist.stop',  te['ocr']['event_url'])
         te.setdefault('web', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('web.search', te['web']['event_url'])
         te.setdefault('discord', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('discord.collect.start', te['discord']['event_url'])
         tools_map.setdefault('discord.collect.stop',  te['discord']['event_url'])
+
+        if self.assist_mode:
+            allowed = {
+                k: v
+                for k, v in tools_map.items()
+                if k.startswith('stt_assist') or k.startswith('ocr_assist')
+            }
+            self.cfg['tools'] = allowed
+            self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
+        else:
+            self.tool_handlers = TOOL_HANDLERS
+
+    def _check_assist_mode(self) -> bool:
+        try:
+            agent = self.cfg.get("agent") or {}
+            base = (agent.get("event_url") or "http://127.0.0.1:8765/event").rsplit("/", 1)[0]
+            r = httpx.get(f"{base}/assist/status", timeout=2.0)
+            return bool(r.json().get("assist_mode"))
+        except Exception:
+            return False
 
         # alias for ocr/stt names
         # WEB aliases
@@ -737,7 +773,7 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
 
     def reload_memory(self):
         with self.lock:
-            self.tool_memory = read_tool_memory()
+            self.tool_memory = read_tool_memory(self.assist_mode)
             self.history_tools = [{"role": "system", "content": self._system_prompt_tools()}]
             self.history_chat  = [{"role": "system", "content": self._system_prompt_chat()}]
 
@@ -1668,7 +1704,9 @@ class OverlayWindow(QtWidgets.QWidget):
 
     def _update_title(self):
         """제목 업데이트 (모드 및 pin 상태 반영)"""
-        if self.mode == 'chat':
+        if getattr(self, 'orch', None) and getattr(self.orch, 'assist_mode', False):
+            mode_text = 'Assist'
+        elif self.mode == 'chat':
             mode_text = 'Chat(14B)'
         elif self.mode == 'vision':
             mode_text = 'Vision(12B)'
@@ -1816,9 +1854,10 @@ class OverlayWindow(QtWidgets.QWidget):
             names.append(nm)
         self._append('overlay', "\n".join(lines))
         try:
-            base, _, _ = read_tool_memory().partition("\nAvailable tools:\n")
+            base, _, _ = read_tool_memory(self.orch.assist_mode).partition("\nAvailable tools:\n")
             new_mem = base.rstrip() + "\n\nAvailable tools:\n" + "\n".join(f"- {n}" for n in sorted(names)) + "\n"
-            with open(MEMO_PATH, 'w', encoding='utf-8') as f:
+            path = MEMO_PATH_ASSIST if self.orch.assist_mode else MEMO_PATH
+            with open(path, 'w', encoding='utf-8') as f:
                 f.write(new_mem)
             self.orch.reload_memory()
             self._append('overlay', 'tool_memory.txt updated')
