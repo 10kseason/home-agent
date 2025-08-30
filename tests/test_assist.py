@@ -13,6 +13,26 @@ AssistTranscriber = assist.AssistTranscriber
 AssistConfig = assist.AssistConfig
 
 
+def test_select_device_passthrough():
+    assert assist._select_input_device(3) == 3
+
+
+def test_select_device_auto(monkeypatch):
+    class DummySD:
+        def __init__(self):
+            self.default = type("D", (), {"device": (None, None)})
+
+        def query_devices(self):
+            return [
+                {"max_input_channels": 0},
+                {"max_input_channels": 2},
+            ]
+
+    dummy = DummySD()
+    monkeypatch.setattr(assist, "sd", dummy)
+    assert assist._select_input_device(None) == 1
+
+
 class DummyModel:
     def __init__(self):
         self.model_size = "dummy"

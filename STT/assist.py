@@ -4,6 +4,9 @@ This module captures microphone audio and streams it through a
 WhisperModel. Recognized text is posted to the agent event bus so the
 accessibility mode can react in real time.
 
+If no input device is specified, the first available system microphone is
+chosen automatically for convenience.
+
 Example:
     python assist.py --model tiny.en
 
@@ -95,6 +98,32 @@ class AssistTranscriber:
         return text
 
 
+def _select_input_device(device_index: Optional[int]) -> Optional[int]:
+    """Return a microphone device index, auto-detecting when unspecified."""
+    if device_index is not None:
+        return device_index
+    if sd is None:
+        return None
+    try:
+        default = sd.default.device  # type: ignore[attr-defined]
+        if isinstance(default, (tuple, list)):
+            default_in = default[0]
+        else:
+            default_in = default
+        if default_in is not None and default_in >= 0:
+            return int(default_in)
+    except Exception:
+        pass
+    try:
+        devices = sd.query_devices()  # pragma: no cover - environment dependent
+        for i, dev in enumerate(devices):
+            if dev.get("max_input_channels", 0) > 0:
+                return i
+    except Exception:  # pragma: no cover - environment dependent
+        pass
+    return None
+
+
 def run(cfg: AssistConfig) -> None:
     """Capture microphone and stream to Whisper."""
     if WhisperModel is None:
@@ -109,13 +138,14 @@ def run(cfg: AssistConfig) -> None:
         q.put(bytes(indata))
 
     blocksize = int(cfg.sample_rate * (cfg.block_ms / 1000))
+    device = _select_input_device(cfg.device_index)
     with sd.RawInputStream(
         samplerate=cfg.sample_rate,
         blocksize=blocksize,
         dtype="int16",
         channels=1,
         callback=callback,
-        device=cfg.device_index,
+        device=device,
     ):
         buf = bytearray()
         print("[assist] Listening...")
