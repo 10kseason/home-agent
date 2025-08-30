@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import yaml
+import httpx
 import time
 import threading
 import subprocess
@@ -15,6 +16,9 @@ import traceback
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Callable
 from pathlib import Path
+
+MEMO_PATH = Path(__file__).resolve().parent / "tool_memory.txt"
+MEMO_PATH_ASSIST = Path(__file__).resolve().parent / "Tool_memory_Assist.txt"
 
 # 외부 tools 폴더에서 YAML 기반 플러그인을 가져온다
 try:
@@ -539,21 +543,31 @@ class PluginAwareOrchestrator:
         self.config = config
         self.window = window
         self.plugin_manager = PluginManager(config)
-        
-        # 기존 Orchestrator 기능들...
-        self.tool_memory = self._load_tool_memory()
+
+        self.assist_mode = self._check_assist_mode(config)
+        self.tool_memory = self._load_tool_memory(self.assist_mode)
         self.history_tools = [{"role": "system", "content": self._system_prompt_tools()}]
         self.history_chat = [{"role": "system", "content": self._system_prompt_chat()}]
         
         logger.info(f"[Orchestrator] Loaded with {len(self.plugin_manager.get_available_tools())} tools")
     
-    def _load_tool_memory(self) -> str:
+    def _load_tool_memory(self, assist_mode: bool = False) -> str:
         """도구 메모리 로드"""
+        path = MEMO_PATH_ASSIST if assist_mode else MEMO_PATH
         try:
-            with open("tool_memory.txt", "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return f.read()
         except:
             return "You are a tool orchestrator. Use available plugins to help users."
+
+    def _check_assist_mode(self, cfg: Dict[str, Any]) -> bool:
+        try:
+            agent = cfg.get("agent") or {}
+            base = (agent.get("event_url") or "http://127.0.0.1:8765/event").rsplit("/", 1)[0]
+            r = httpx.get(f"{base}/assist/status", timeout=2.0)
+            return bool(r.json().get("assist_mode"))
+        except Exception:
+            return False
     
     def _system_prompt_tools(self) -> str:
         """도구용 시스템 프롬프트"""

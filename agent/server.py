@@ -121,8 +121,15 @@ def create_app(ctx, plugins=None):
                         key = "stt_assist.start" if app.state.assist_mode else "stt.start"
                         app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), key)
                 elif ev.type == "stt.stop":
-                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
-                    app.state.stt_proc = None
+                    if app.state.assist_mode:
+                        logger.info("[stt] stop ignored in assist mode")
+                    else:
+                        await _terminate_proc(
+                            getattr(app.state, "stt_proc", None),
+                            name="stt",
+                            timeout=3.0,
+                        )
+                        app.state.stt_proc = None
 
             ctx.bus.subscribe("stt.", _stt_handler)
             app.state._plugin_unsubs.append(("stt.", _stt_handler))
@@ -153,8 +160,14 @@ def create_app(ctx, plugins=None):
                     if app.state.assist_task is None:
                         async def _ticker():
                             while app.state.assist_mode:
-                                logger.info("OK 음성 입력 도우미 켜져있음")
-                                await asyncio.sleep(30)
+                                proc = getattr(app.state, "stt_proc", None)
+                                if proc is None or proc.poll() is not None:
+                                    logger.info("[assist] restarting stt_assist")
+                                    app.state.stt_proc = _spawn_tool(
+                                        getattr(ctx, "config", {}),
+                                        "stt_assist.start",
+                                    )
+                                await asyncio.sleep(5)
                         app.state.assist_task = asyncio.create_task(_ticker())
                 elif ev.type == "assist.off":
                     app.state.assist_mode = False
