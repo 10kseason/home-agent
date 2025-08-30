@@ -23,8 +23,9 @@ contributors.
 - **Core Modules** – pseudocode skeletons under `src/core/` outline stable ID
   generation, ROI‑OCR, ranking, rule-based NLU, two‑stage runner, barge‑in and
   preserve‑lock logic.
-- **STT Assist** – `STT/assist.py` streams microphone audio through Whisper and
-  posts `stt.text` events when accessibility mode is active.
+- **STT Assist** – `STT/assist.py` streams microphone audio through Whisper,
+  auto-selecting the default input device and posting `stt.text` events when
+  accessibility mode is active.
 - **Testing & Metrics** – `tests/cards.md` lists manual test scenarios while
   `metrics/slo.md` defines latency and failure SLOs.
 
@@ -33,6 +34,16 @@ contributors.
 1. Install dependencies: `pip install -r requirements.txt`
 2. Run the suite: `pytest -q`
 3. Adjust `config.yaml` or profile overrides as needed.
+
+## Preserve-Lock Invariants
+
+`src/core/preserve_lock.py` checks that invariant tokens such as numbers,
+dates, URLs or email addresses survive translation. The helper
+`missing_tokens` returns a mapping of token types to any items that are
+missing from the translated text, while `preserve_ok` accepts an optional
+list of token categories to verify. This allows translation flows to retry
+only the sentences that violate preserve rules or to disable checks for
+unrelated token classes.
 
 # Checklist:
 # - [x] Think Harder

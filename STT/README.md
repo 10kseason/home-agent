@@ -62,5 +62,7 @@ accessibility workflow can react. Launch it manually with:
 python assist.py --model tiny.en
 ```
 
-The script is intentionally lightweight and can be started automatically when
-보조모드(accessibility mode) is enabled.
+The script auto-selects the system microphone when no device is specified, so
+most users can simply run it without flags. Pass `--device-index` only to pin a
+specific input. It is intentionally lightweight and can be started automatically
+when 보조모드(accessibility mode) is enabled.

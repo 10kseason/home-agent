@@ -12,4 +12,6 @@
   절단 및 고급 후보 표현은 추후 구현 필요.
 - Context packer 문서화 보강 및 테스트용 배치 스크립트(run_tests.bat) 추가. 추후 실제 모듈 연동과 토큰 인식 절단 기능 개발 필요.
 - STT assist script added to capture microphone audio via Whisper and emit stt.text events for accessibility mode. Integration with full event bus and wake-word control still pending.
+- STT assist now auto-selects the default microphone when no device index is provided, removing the need for manual input selection. Full event bus integration and wake-word control remain.
 - Root AGENTS.md now summarizes major folders and key files so future agents can quickly understand the repo layout; detailed tree remains in docs/REPO_STRUCTURE.md.
+- Preserve-lock 모듈에 missing_tokens 함수와 선택적 토큰 유형 검사가 추가되어 번역 후 불일치 토큰을 파악 가능. 실제 번역 플로우와의 통합 및 고급 토큰 패턴은 아직 구현 필요.
