@@ -387,6 +387,21 @@ def read_tool_memory(assist_mode: bool = False) -> str:
     except Exception:
         return ""
 
+
+def save_accessibility(enabled: bool) -> None:
+    """Persist accessibility flag to the root config.yaml."""
+    try:
+        if ROOT_CFG_PATH.exists():
+            with open(ROOT_CFG_PATH, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            data = {}
+        data["accessibility"] = 1 if enabled else 0
+        with open(ROOT_CFG_PATH, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        logger.warning(f"[assist] failed to persist accessibility: {e}")
+
 # ---------------- utils ----------------
 
 
@@ -583,8 +598,10 @@ class Orchestrator:
         self.cfg = cfg
         self.window = window  # OverlayWindow 참조
 
-        # detect assistive mode from agent server
-        self.assist_mode = self._check_assist_mode()
+        # determine assist mode from config or agent server
+        server_assist = self._check_assist_mode()
+        cfg_assist = bool(cfg.get("accessibility"))
+        self.assist_mode = cfg_assist or server_assist
 
         cfg.setdefault("llm_tools", {})
         cfg["llm_tools"]["model"] = (
@@ -621,17 +638,28 @@ class Orchestrator:
         tools_map.setdefault('stt_assist.stop',  te['stt']['event_url'])
         tools_map.setdefault('ocr_assist.start', te['ocr']['event_url'])
         tools_map.setdefault('ocr_assist.stop',  te['ocr']['event_url'])
+        tools_map.setdefault('assist.on', te['stt']['event_url'])
+        tools_map.setdefault('assist.off', te['stt']['event_url'])
         te.setdefault('web', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('web.search', te['web']['event_url'])
         te.setdefault('discord', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('discord.collect.start', te['discord']['event_url'])
         tools_map.setdefault('discord.collect.stop',  te['discord']['event_url'])
 
+        self._all_tools_map = dict(tools_map)
+        if cfg_assist and not server_assist:
+            threading.Thread(
+                target=lambda: asyncio.run(
+                    self.run_tool_calls([{ "name": "assist.on", "args": {} }])
+                ),
+                daemon=True,
+            ).start()
+
         if self.assist_mode:
             allowed = {
                 k: v
                 for k, v in tools_map.items()
-                if k.startswith('stt_assist') or k.startswith('ocr_assist')
+                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.')
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
@@ -683,6 +711,28 @@ class Orchestrator:
                     tmap['stt.stop'] = tmap.get('stt.start') or tmap.get('stt')
         except Exception as e:
             logger.warning(f"[tools] alias mapping failed: {e}")
+
+    def set_assist_mode(self, enabled: bool):
+        """Toggle assist mode at runtime."""
+        self.assist_mode = bool(enabled)
+        self.cfg["accessibility"] = 1 if enabled else 0
+        if enabled:
+            allowed = {
+                k: v
+                for k, v in self._all_tools_map.items()
+                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.')
+            }
+            self.cfg['tools'] = allowed
+            self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
+        else:
+            self.cfg['tools'] = dict(self._all_tools_map)
+            self.tool_handlers = TOOL_HANDLERS
+        self.reload_memory()
+        if self.window:
+            title = "Luna Overlay v9 - Mode : Assist" if enabled else "Luna Overlay v9"
+            self.window.setWindowTitle(title)
+            if hasattr(self.window, "_update_title"):
+                self.window._update_title()
 
     def orchestrate(self, user_text: str) -> Dict[str, Any]:
         """
@@ -1962,11 +2012,15 @@ class OverlayWindow(QtWidgets.QWidget):
                 return True
             state = toks[1].lower() if len(toks) >= 2 else "on"
             if state in ("on", "1", "true"):
-                self.orch.cfg["accessibility"] = 1
+                self.orch.set_assist_mode(True)
+                save_accessibility(True)
+                self._run_tool_calls_async([{ "name": "assist.on", "args": {} }])
                 self._append("overlay", "Accessibility mode enabled")
                 logger.info("[assist] enabled")
             elif state in ("off", "0", "false"):
-                self.orch.cfg["accessibility"] = 0
+                self.orch.set_assist_mode(False)
+                save_accessibility(False)
+                self._run_tool_calls_async([{ "name": "assist.off", "args": {} }])
                 self._append("overlay", "Accessibility mode disabled")
                 logger.info("[assist] disabled")
             else:

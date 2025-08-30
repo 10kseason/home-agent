@@ -1,0 +1,17 @@
+assist:
+  announce_text: "찍었습니다."
+
+capture:
+  monitor: 1        # 1-based monitor index
+  region: null      # optional [left, top, width, height]
+
+event:
+  url: http://127.0.0.1:8350/event
+  key: null
+
+ocr:
+  lang: korean
+  use_angle_cls: true
+  device: cpu
+  det_model_dir: null
+  rec_model_dir: null
