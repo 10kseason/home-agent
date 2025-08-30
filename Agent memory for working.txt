@@ -20,3 +20,5 @@
 - Centralized configuration: merged agent, overlay, STT, and OCR settings into root config.yaml so all components share a single config source.
 - Added bilingual inline comments to config.yaml and created CONFIGURATION.md for English/Korean docs.
 - Assist mode now launches assist-specific STT and PaddleOCR modules via agent events, with periodic status logging and an /assist/status endpoint. Voice-command triggers and debug capture remain to be implemented.
+- STT Assist now reads a dedicated Assist-config via a batch script and runs faster-whisper small int8 on CPU. OCR Assist plays a "찍었습니다." TTS cue using eSpeak NG on CPU after capturing text.
+- Added eSpeak NG TTS configuration with pronunciation rules; OCR Assist now uses shared eSpeak module.

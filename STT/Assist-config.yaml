@@ -1,0 +1,11 @@
+stt:
+  engine: faster-whisper
+  model: small           # multilingual
+  compute_type: int8     # CPU friendly
+  language: auto         # auto-detect ko/en/ja/zh
+  vad: silero            # or webrtcvad
+  chunk_sec: 7
+  chunk_overlap_sec: 0.5
+  beam_size: 3
+  condition_on_previous_text: false   # avoid hallucination accumulation
+  temperature_fallback: [0.0, 0.2, 0.4]
