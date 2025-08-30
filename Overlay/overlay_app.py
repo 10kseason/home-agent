@@ -583,6 +583,8 @@ class Orchestrator:
         self.procs: Dict[str, subprocess.Popen] = {}
         self.lock = threading.Lock()
         self.tool_handlers = TOOL_HANDLERS
+
+        cfg.setdefault('assist_debug', 0)
         
         # defaults for tool endpoints
         cfg.setdefault('tool_endpoints', {})
@@ -984,10 +986,15 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
 
             before_tool(name, args)
 
+            if self.cfg.get("assist_debug"):
+                logger.info(f"[assist-debug] tool call {name} {args}")
+                if self.window and hasattr(self.window, "_append"):
+                    QtCore.QTimer.singleShot(0, lambda n=name, a=args: self.window._append("debug", f"{n} {a}"))
+
             if name == "agent.list_tools":
                 try:
                     if self.window and hasattr(self.window, "_show_tools"):
-                        self.window._show_tools()
+                        QtCore.QTimer.singleShot(0, self.window._show_tools)
                     else:
                         handler = self.tool_handlers.get(name)
                         if handler:
@@ -1876,6 +1883,8 @@ class OverlayWindow(QtWidgets.QWidget):
                      "  /debug on|off            → 디버그 모드 토글\n"
                      "  /ocr on|off             → OCR 시작/정지 (직접)\n"
                      "  /stt on|off             → STT 시작/정지 (직접)\n"
+                     "  /assist on|off          → 보조모드 토글\n"
+                     "  /assist debug on|off   → 보조모드 디버그\n"
                      "  /web <query>           → 웹 검색 이벤트 전송\n"
                      "  /tools                  → 통합 툴 목록 표시\n"
                      "  /plugins                → 플러그인 엔드포인트 표시\n"
@@ -1897,8 +1906,26 @@ class OverlayWindow(QtWidgets.QWidget):
         if cmd in ("/help", "/도움말"):
             self._help(); return True
         if cmd in ("/보조모드", "/assist"):
-            self.orch.cfg["accessibility"] = 1
-            self._append("overlay", "Accessibility mode enabled")
+            if len(toks) >= 2 and toks[1].lower() in ("디버그", "debug"):
+                if len(toks) >= 3:
+                    enable = toks[2].lower() in ("on", "true", "1")
+                    self.orch.cfg["assist_debug"] = 1 if enable else 0
+                    self._append("overlay", f"보조모드 디버그 {'활성화' if enable else '비활성화'}")
+                    logger.info(f"[assist] debug {'on' if enable else 'off'}")
+                else:
+                    self._append("error", "Usage: /assist debug on|off")
+                return True
+            state = toks[1].lower() if len(toks) >= 2 else "on"
+            if state in ("on", "1", "true"):
+                self.orch.cfg["accessibility"] = 1
+                self._append("overlay", "Accessibility mode enabled")
+                logger.info("[assist] enabled")
+            elif state in ("off", "0", "false"):
+                self.orch.cfg["accessibility"] = 0
+                self._append("overlay", "Accessibility mode disabled")
+                logger.info("[assist] disabled")
+            else:
+                self._append("error", "Usage: /assist on|off")
             return True
         if cmd in ("/대화모드", "/chat"):
             self.set_mode("chat"); return True
@@ -2161,6 +2188,11 @@ class Tray(QtWidgets.QSystemTrayIcon):
     def toggle(self):
         if self.window.isVisible():
             self.window.hide()
+            try:
+                if getattr(self.window, "orch", None) and self.window.orch.cfg.get("accessibility"):
+                    self.window._run_tool_calls_async([{ "name": "stt.start", "args": { "mode": "realtime" } }])
+            except Exception as e:
+                logger.error(f"[assist] stt.start failed: {e}")
         else:
             pos = QtGui.QCursor.pos()
             self.window.move(pos.x()-self.window.width()//2,
@@ -2168,6 +2200,11 @@ class Tray(QtWidgets.QSystemTrayIcon):
             self.window.show()
             self.window.raise_()
             self.window.activateWindow()
+            try:
+                if getattr(self.window, "orch", None) and self.window.orch.cfg.get("accessibility"):
+                    self.window._run_tool_calls_async([{ "name": "stt.stop", "args": {} }])
+            except Exception as e:
+                logger.error(f"[assist] stt.stop failed: {e}")
 
     def _on_activated(self, reason):
         if reason == QtWidgets.QSystemTrayIcon.Trigger:

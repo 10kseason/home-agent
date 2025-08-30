@@ -15,3 +15,5 @@
 - STT assist now auto-selects the default microphone when no device index is provided, removing the need for manual input selection. Full event bus integration and wake-word control remain.
 - Root AGENTS.md now summarizes major folders and key files so future agents can quickly understand the repo layout; detailed tree remains in docs/REPO_STRUCTURE.md.
 - Preserve-lock 모듈에 missing_tokens 함수와 선택적 토큰 유형 검사가 추가되어 번역 후 불일치 토큰을 파악 가능. 실제 번역 플로우와의 통합 및 고급 토큰 패턴은 아직 구현 필요.
+- Overlay agent.list_tools calls are now invoked via the Qt event loop to prevent crashes when the LLM requests tool listings. Accessibility mode can be toggled with `/assist on|off` and debug logging via `/assist debug on|off`. Full wake‑word handling and deeper event bus wiring for assist mode remain outstanding.
+- In accessibility mode, the overlay now auto-starts microphone STT when minimized to the system tray and stops it when the window is restored, keeping assistive voice control active in the background.
