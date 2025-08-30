@@ -46,3 +46,29 @@ tools:
           type: string
           description: "오디오 파일 경로"
       required: [audio_path]
+
+  - name: ocr_assist
+    module: tools.tool.ocr
+    class: OCR
+    enabled: true
+    desc: "Assist OCR capture"
+    input_schema:
+      type: object
+      properties:
+        image_path:
+          type: string
+          description: "이미지 파일 경로"
+      required: [image_path]
+
+  - name: stt_assist
+    module: tools.tool.stt
+    class: STT
+    enabled: true
+    desc: "Assist microphone transcription"
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "오디오 파일 경로"
+      required: [audio_path]
