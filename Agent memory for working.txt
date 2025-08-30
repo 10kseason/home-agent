@@ -5,3 +5,6 @@
 - ROI OCR 다국어 PaddleOCR 연동 골격과 ROI 백오프 로직 추가. 화면 캡처/절대좌표 변환 등 실사용 연동은 계속 필요.
 - 랭킹 모듈에 Feature/Candidate 구조와 정규화 점수 기반 정렬 함수 구현. 실제 UIA feature 추출 연동 필요.
 - Rule NLU에 다음/이전 줄, 철자, 숫자 등 규칙 확장 및 DSL 형태 반환. 복잡한 의도 파서는 LLM으로 위임 예정.
+- Runner 모듈을 단순화하여 두 단계 LLM 호출만 수행하도록 수정. LM Studio/Ollama 환경 가정 하에 동작.
+- Executor 모듈에 UIA 우선 실행과 좌표/키보드/ OCR 대체 로직이 담긴 최소 구현 추가. 실제 UIA 연동과 위험
+  명령 확인 절차 고도화가 필요.
