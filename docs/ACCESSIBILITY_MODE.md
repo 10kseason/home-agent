@@ -23,6 +23,8 @@ contributors.
 - **Core Modules** – pseudocode skeletons under `src/core/` outline stable ID
   generation, ROI‑OCR, ranking, rule-based NLU, two‑stage runner, barge‑in and
   preserve‑lock logic.
+- **STT Assist** – `STT/assist.py` streams microphone audio through Whisper and
+  posts `stt.text` events when accessibility mode is active.
 - **Testing & Metrics** – `tests/cards.md` lists manual test scenarios while
   `metrics/slo.md` defines latency and failure SLOs.
 

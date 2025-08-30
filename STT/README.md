@@ -52,3 +52,15 @@ translate:
 - `debug.write_wav_segments: true`면 각 세그먼트를 `./segments/`에 저장
 
 문제 있으면 콘솔 로그 몇 줄과 `--list-devices` 출력 주면 더 조여 드립니다.
+
+## Assist Mode (Microphone STT)
+`assist.py` captures live microphone audio and runs it through `faster-whisper`.
+Recognized utterances are posted as `stt.text` events to the agent bus so the
+accessibility workflow can react. Launch it manually with:
+
+```bash
+python assist.py --model tiny.en
+```
+
+The script is intentionally lightweight and can be started automatically when
+보조모드(accessibility mode) is enabled.
