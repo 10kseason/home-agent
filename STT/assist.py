@@ -23,7 +23,7 @@ import queue
 import os
 import threading
 import time
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 import yaml
 
 import numpy as np
@@ -46,6 +46,20 @@ except Exception:  # pragma: no cover - handled gracefully
     WhisperModel = None
 
 import requests
+import importlib.util
+import pathlib
+import sys
+try:
+    from .cmd_detector import detect_command
+except Exception:  # pragma: no cover - script execution
+    spec = importlib.util.spec_from_file_location(
+        "cmd_detector", pathlib.Path(__file__).with_name("cmd_detector.py")
+    )
+    cmd_mod = importlib.util.module_from_spec(spec)
+    sys.modules["cmd_detector"] = cmd_mod
+    assert spec.loader is not None
+    spec.loader.exec_module(cmd_mod)
+    detect_command = cmd_mod.detect_command
 
 _EVENT_URL = (
     os.environ.get("EVENT_URL")
@@ -91,6 +105,19 @@ class AssistConfig:
     sample_rate: int = 16_000
     block_ms: int = 3_000  # transcribe every N milliseconds
     device_index: Optional[int] = None
+    commands: Dict[str, List[str]] = field(
+        default_factory=lambda: {
+            "capture": ["캡쳐", "캡처", "capture", "スクショ", "截图", "截屏"],
+            "summarize": ["요약", "summary", "まとめて", "要約", "总结"],
+            "translate": ["번역", "translate", "翻訳", "翻译"],
+            "focus": ["집중모드", "집중 모드", "focus mode"],
+            "repeat": ["다시", "repeat", "もう一度", "再读", "再来一次"],
+            "stop": ["멈춰", "정지", "stop", "停止"],
+        }
+    )
+    detection: Dict[str, int | bool] = field(
+        default_factory=lambda: {"require_boundary": False, "cooldown_ms": 800}
+    )
 
 
 class AssistTranscriber:
@@ -136,6 +163,13 @@ class AssistTranscriber:
             self.event_func("stt.text", payload)
             if self.ui:
                 self.ui.push(text)
+            cmd = detect_command(text, self.cfg)
+            if cmd:
+                self.event_func(
+                    "cmd.detected",
+                    {"cmd": cmd, "ts": time.time()},
+                    1,
+                )
         return text
 
 
@@ -264,7 +298,10 @@ def main() -> None:
     if args.config:
         with open(args.config, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        cfg = AssistConfig(**(data.get("stt") or {}))
+        cfg_data = {}
+        cfg_data.update(data.get("stt") or {})
+        cfg_data.update(data.get("assist") or {})
+        cfg = AssistConfig(**cfg_data)
     else:
         cfg = AssistConfig(
             model=args.model,

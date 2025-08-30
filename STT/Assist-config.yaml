@@ -1,3 +1,14 @@
+assist:
+  commands:
+    capture: ["캡쳐", "캡처", "capture", "スクショ", "截图", "截屏"]
+    summarize: ["요약", "summary", "まとめて", "要約", "总结"]
+    translate: ["번역", "translate", "翻訳", "翻译"]
+    focus: ["집중모드", "집중 모드", "focus mode"]
+    repeat: ["다시", "repeat", "もう一度", "再读", "再来一次"]
+    stop: ["멈춰", "정지", "stop", "停止"]
+  detection:
+    require_boundary: false
+    cooldown_ms: 800
 stt:
   engine: faster-whisper
   model: small           # multilingual
