@@ -14,6 +14,8 @@ class Ctx:
         )
         self.policy = Policy(config["policy"]["autonomy_level"])
         self.sinks = sinks_mod
+        # Accessibility/assistive mode flag (persisted until toggled off)
+        self.assist_mode: bool = bool(config.get("accessibility", 0))
 
 def load_config(path: str = "config.yaml") -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:

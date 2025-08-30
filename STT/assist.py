@@ -21,6 +21,8 @@ from dataclasses import dataclass
 import argparse
 import queue
 import os
+import threading
+import time
 from typing import Callable, Optional
 
 import numpy as np
@@ -28,6 +30,13 @@ try:
     import sounddevice as sd
 except Exception:
     sd = None
+
+try:
+    import tkinter as tk
+    from tkinter import scrolledtext
+except Exception:
+    tk = None
+    scrolledtext = None
 
 
 try:  # faster-whisper is optional for import-time
@@ -78,10 +87,12 @@ class AssistTranscriber:
         model: WhisperModel,
         event_func: Callable[[str, dict, int], None] = _post_event,
         config: AssistConfig | None = None,
+        ui: "SubtitleUI" | None = None,
     ) -> None:
         self.model = model
         self.event_func = event_func
         self.cfg = config or AssistConfig()
+        self.ui = ui
 
     def transcribe(self, pcm16: bytes) -> str:
         """Transcribe a chunk of PCM16 mono audio."""
@@ -95,7 +106,57 @@ class AssistTranscriber:
                 "stt_model": getattr(self.model, "model_size", "unknown"),
             }
             self.event_func("stt.text", payload)
+            if self.ui:
+                self.ui.push(text)
         return text
+
+
+class SubtitleUI:
+    """Simple tkinter window that shows live transcriptions."""
+
+    def __init__(self):
+        self.enabled = tk is not None
+        self.queue: "queue.Queue[str]" = queue.Queue()
+        self.root = None
+        self.chat_box = None
+        if self.enabled:
+            self.root = tk.Tk()
+            self.root.title("Assist STT")
+            self.root.geometry("600x240+60+60")
+            self.chat_box = scrolledtext.ScrolledText(
+                self.root, bg="#101316", fg="#E6E6E6", font=("Arial", 14), wrap="word"
+            )
+            self.chat_box.pack(fill="both", expand=True, padx=16, pady=16)
+            self.chat_box.configure(state="disabled")
+            self.root.after(50, self._poll)
+
+    def _poll(self):
+        try:
+            while True:
+                text = self.queue.get_nowait()
+                if self.chat_box is not None:
+                    self.chat_box.configure(state="normal")
+                    self.chat_box.insert(tk.END, text + "\n")
+                    self.chat_box.see(tk.END)
+                    self.chat_box.configure(state="disabled")
+                print(text)
+        except queue.Empty:
+            pass
+        if self.enabled and self.root:
+            self.root.after(50, self._poll)
+
+    def push(self, text: str) -> None:
+        self.queue.put(text)
+
+    def loop(self) -> None:
+        if self.enabled and self.root:
+            self.root.mainloop()
+        else:  # pragma: no cover - no GUI
+            try:
+                while True:
+                    time.sleep(0.1)
+            except KeyboardInterrupt:
+                pass
 
 
 def _select_input_device(device_index: Optional[int]) -> Optional[int]:
@@ -125,20 +186,31 @@ def _select_input_device(device_index: Optional[int]) -> Optional[int]:
 
 
 def run(cfg: AssistConfig) -> None:
-    """Capture microphone and stream to Whisper."""
+    """Capture microphone and stream to Whisper, showing subtitles."""
     if WhisperModel is None:
         raise RuntimeError("faster-whisper is not installed")
 
     model = WhisperModel(cfg.model_size, device="auto", compute_type="int8")
-    transcriber = AssistTranscriber(model, _post_event, cfg)
+    ui = SubtitleUI()
+    transcriber = AssistTranscriber(model, _post_event, cfg, ui)
 
-    q: queue.Queue[bytes] = queue.Queue()
+    q: "queue.Queue[bytes]" = queue.Queue()
 
     def callback(indata, frames, time, status):  # pragma: no cover - realtime
         q.put(bytes(indata))
 
     blocksize = int(cfg.sample_rate * (cfg.block_ms / 1000))
     device = _select_input_device(cfg.device_index)
+
+    def worker():  # pragma: no cover - realtime loop
+        buf = bytearray()
+        print("[assist] Listening...")
+        while True:
+            buf.extend(q.get())
+            if len(buf) >= blocksize * 2:
+                transcriber.transcribe(bytes(buf))
+                buf.clear()
+
     with sd.RawInputStream(
         samplerate=cfg.sample_rate,
         blocksize=blocksize,
@@ -147,13 +219,8 @@ def run(cfg: AssistConfig) -> None:
         callback=callback,
         device=device,
     ):
-        buf = bytearray()
-        print("[assist] Listening...")
-        while True:  # pragma: no cover - realtime loop
-            buf.extend(q.get())
-            if len(buf) >= blocksize * 2:
-                transcriber.transcribe(bytes(buf))
-                buf.clear()
+        threading.Thread(target=worker, daemon=True).start()
+        ui.loop()
 
 
 def main() -> None:
