@@ -17,6 +17,25 @@ async def dispatch_all(bus: EventBus):
                     await h(e)
 
 
+def test_cmd_detected_toast():
+    async def runner():
+        ctx = SimpleNamespace()
+        ctx.bus = EventBus(dedup_window=0)
+        ctx.config = {}
+        plugin = AssistCommandPlugin(ctx)
+        toasts = []
+
+        async def collect(ev):
+            toasts.append((ev.payload.get("title"), ev.payload.get("text")))
+
+        ctx.bus.subscribe("overlay.", collect)
+        await plugin.handle(Event(type="cmd.detected", payload={"cmd": "capture"}))
+        await dispatch_all(ctx.bus)
+        assert toasts[0] == ("📋 Cmd Detected", "capture")
+
+    asyncio.run(runner())
+
+
 def test_capture_repeat():
     async def runner():
         ctx = SimpleNamespace()
@@ -28,13 +47,13 @@ def test_capture_repeat():
             events.append(ev.type)
         async def noop(ev):
             pass
-        ctx.bus.subscribe("ocr.", collect)
+        ctx.bus.subscribe("ocr_assist.", collect)
         ctx.bus.subscribe("overlay.", noop)
         await plugin.handle(Event(type="cmd.detected", payload={"cmd": "capture"}))
         await dispatch_all(ctx.bus)
         await plugin.handle(Event(type="cmd.detected", payload={"cmd": "repeat"}))
         await dispatch_all(ctx.bus)
-        assert events == ["ocr.start", "ocr.start"]
+        assert events == ["ocr_assist.start", "ocr_assist.start"]
     asyncio.run(runner())
 
 
