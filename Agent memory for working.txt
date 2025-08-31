@@ -55,3 +55,4 @@
 - Assist and OCR tools now use relative paths and a shared loader so they run from any working directory; docs note configuring local LLM endpoints for tool calls.
 - OCR assist now delays capture by 5 seconds, showing "5초 뒤 촬영 합니다" and then "이미지를 OCR 중입니다.." before processing; deeper assist integration remains.
 - AssistCommandPlugin now performs combined summarize+translate when needed, caching summaries so repeated 번역 commands reuse the summary. Further context-caching and repeat behavior refinements remain.
+- AssistCommandPlugin now minimizes LLM context with fixed prompts and SHA1-based caching for summarize/translate tasks, storing last translation. Further STT window tracking and broader context store remain.

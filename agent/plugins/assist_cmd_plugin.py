@@ -12,7 +12,8 @@ rather than the original OCR text and "다시" repeats the previous command.
 from . import BasePlugin
 from agent.schemas import Event
 import json
-from typing import Optional
+import hashlib
+from typing import Dict, Optional, Tuple
 
 import httpx
 from loguru import logger
@@ -26,7 +27,9 @@ class AssistCommandPlugin(BasePlugin):
         super().__init__(ctx)
         self.last_ocr: str = ""
         self.last_summary: str = ""
+        self.last_translation: str = ""
         self.prev_cmd: Optional[str] = None
+        self._cache: Dict[Tuple[str, str], str] = {}
 
     async def _toast(self, text: str) -> None:
         """Send a small overlay notification."""
@@ -39,6 +42,7 @@ class AssistCommandPlugin(BasePlugin):
             # Track latest OCR output for summarize/translate commands
             self.last_ocr = event.payload.get("text", "")
             self.last_summary = ""
+            self.last_translation = ""
             return
 
         cmd = event.payload.get("cmd")
@@ -66,6 +70,7 @@ class AssistCommandPlugin(BasePlugin):
             summary = await self._summarize(self.last_ocr)
             if summary:
                 self.last_summary = summary
+                self.last_translation = ""
                 await self.ctx.bus.publish(
                     Event(
                         type="llm.summary",
@@ -83,6 +88,7 @@ class AssistCommandPlugin(BasePlugin):
                 if res:
                     summary, translated = res
                     self.last_summary = summary
+                    self.last_translation = translated
                     model = self._translate_model()
                     await self.ctx.bus.publish(
                         Event(
@@ -106,6 +112,7 @@ class AssistCommandPlugin(BasePlugin):
             await self._toast("🌐 번역")
             translated = await self._translate(text)
             if translated:
+                self.last_translation = translated
                 await self.ctx.bus.publish(
                     Event(
                         type="llm.translation",
@@ -137,17 +144,30 @@ class AssistCommandPlugin(BasePlugin):
             logger.warning("[assist_command] llm_summary not configured")
             return None
 
+        text = text[:1200]
+        key = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        cached = self._cache.get(("SUMMARIZE", key))
+        if cached:
+            return cached
+
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "Summarize the text in Korean."},
-                {"role": "user", "content": text},
+                {
+                    "role": "system",
+                    "content": "너는 자막/캡처 문서를 두 문장(200자 이내) 으로 핵심만 한국어 요약한다. 고유명사·숫자·단위는 그대로 유지한다. 불확실하면 포함하지 말고 확실한 사실만.",
+                },
+                {
+                    "role": "user",
+                    "content": f"[입력 텍스트 시작]\n{text}\n[끝]\n위 내용을 두 문장(200자 이내)으로 한국어 요약해줘.",
+                },
             ],
             "temperature": cfg.get("temperature", 0.1),
-            "max_tokens": cfg.get("max_new_tokens", 1024),
+            "max_tokens": cfg.get("max_new_tokens", 256),
+            "stop": ["\n\n", "</end>"],
         }
         timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)
         try:
@@ -155,7 +175,9 @@ class AssistCommandPlugin(BasePlugin):
                 r = await client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
                 r.raise_for_status()
                 data = r.json()
-                return (data["choices"][0]["message"]["content"] or "").strip()
+                result = (data["choices"][0]["message"]["content"] or "").strip()
+                self._cache[("SUMMARIZE", key)] = result
+                return result
         except Exception as e:
             logger.error(f"[assist_command] summarize error: {e}")
             return None
@@ -169,18 +191,30 @@ class AssistCommandPlugin(BasePlugin):
             logger.warning("[assist_command] translate not configured")
             return None
 
+        text = text[:1200]
+        key = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        cached = self._cache.get(("TRANSLATE", key))
+        if cached:
+            return cached
+
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        prompt = f"Translate to Korean. If already Korean, return the original. Text:\n{text}"
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are a helpful translator."},
-                {"role": "user", "content": prompt},
+                {
+                    "role": "system",
+                    "content": "너는 한국어 번역기다. 원문 의미·어조를 유지하고, 고유명사/제품명/수치는 그대로 둔다. 출력만 한국어 문장으로 작성한다. 불필요한 설명·서두 금지.",
+                },
+                {
+                    "role": "user",
+                    "content": f"[입력 텍스트 시작]\n{text}\n[끝]\n위 텍스트를 자연스러운 한국어로 번역해줘.",
+                },
             ],
             "temperature": cfg.get("temperature", 0.2),
-            "max_tokens": cfg.get("max_new_tokens", 1024),
+            "max_tokens": cfg.get("max_new_tokens", 256),
+            "stop": ["\n\n", "</end>"],
         }
         timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)
         try:
@@ -188,7 +222,9 @@ class AssistCommandPlugin(BasePlugin):
                 r = await client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
                 r.raise_for_status()
                 data = r.json()
-                return (data["choices"][0]["message"]["content"] or "").strip()
+                result = (data["choices"][0]["message"]["content"] or "").strip()
+                self._cache[("TRANSLATE", key)] = result
+                return result
         except Exception as e:
             logger.error(f"[assist_command] translate error: {e}")
             return None
@@ -203,6 +239,13 @@ class AssistCommandPlugin(BasePlugin):
             logger.warning("[assist_command] translate not configured")
             return None
 
+        text = text[:1200]
+        key = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        sum_cached = self._cache.get(("SUMMARIZE", key))
+        tr_cached = self._cache.get(("TRANSLATE", key))
+        if sum_cached and tr_cached:
+            return sum_cached, tr_cached
+
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -211,12 +254,18 @@ class AssistCommandPlugin(BasePlugin):
             "messages": [
                 {
                     "role": "system",
-                    "content": "Summarize and translate to Korean. Respond in JSON with keys 'summary' and 'translation'.",
+                    "content": (
+                        "너는 자막/캡처 문서의 요약과 한국어 번역을 제공한다. "
+                        "요약은 두 문장(200자 이내)이며 고유명사·숫자·단위를 유지한다. "
+                        "번역은 원문 의미·어조를 유지하고 고유명사/제품명/수치를 그대로 둔다. "
+                        "JSON 형식으로 {'summary': '..', 'translation': '..'}만 응답한다."
+                    ),
                 },
-                {"role": "user", "content": text},
+                {"role": "user", "content": f"[입력 텍스트 시작]\n{text}\n[끝]"},
             ],
             "temperature": cfg.get("temperature", 0.2),
-            "max_tokens": cfg.get("max_new_tokens", 1024),
+            "max_tokens": cfg.get("max_new_tokens", 512),
+            "stop": ["\n\n", "</end>"],
         }
         timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)
         try:
@@ -226,10 +275,11 @@ class AssistCommandPlugin(BasePlugin):
                 data = r.json()
                 content = data["choices"][0]["message"]["content"]
                 parsed = json.loads(content)
-                return (
-                    (parsed.get("summary") or "").strip(),
-                    (parsed.get("translation") or "").strip(),
-                )
+                summary = (parsed.get("summary") or "").strip()
+                translation = (parsed.get("translation") or "").strip()
+                self._cache[("SUMMARIZE", key)] = summary
+                self._cache[("TRANSLATE", key)] = translation
+                return summary, translation
         except Exception as e:
             logger.error(f"[assist_command] summarize+translate error: {e}")
             return None
