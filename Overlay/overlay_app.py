@@ -604,9 +604,7 @@ class Orchestrator:
         self.assist_mode = cfg_assist or server_assist
 
         cfg.setdefault("llm_tools", {})
-        cfg["llm_tools"]["model"] = (
-            "qwen/qwen3-4b-thinking-2507" if self.assist_mode else "qwen/qwen3-4b-2507"
-        )
+        cfg["llm_tools"]["model"] = "qwen/qwen3-4b-2507"
 
         if self.assist_mode and self.window:
             self.window.setWindowTitle("Luna Overlay v9 - Mode : Assist")
@@ -664,7 +662,13 @@ class Orchestrator:
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
         else:
-            self.tool_handlers = TOOL_HANDLERS
+            allowed = {
+                k: v
+                for k, v in tools_map.items()
+                if not (k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.'))
+            }
+            self.cfg['tools'] = allowed
+            self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
 
     def _check_assist_mode(self) -> bool:
         try:

@@ -101,6 +101,11 @@ class TranslatorPlugin(BasePlugin):
         if not text and not existing:
             return
 
+        if event.type == "stt.text" and payload.get("source") == "assist":
+            kw = self.ctx.config.get("stt", {}).get("llm_keyword")
+            if kw and kw not in text:
+                return
+
         translated = existing
         if not translated:
             try:

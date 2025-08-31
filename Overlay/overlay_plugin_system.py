@@ -547,15 +547,28 @@ class PluginAwareOrchestrator:
         self.assist_mode = self._check_assist_mode(config)
 
         config.setdefault("llm_tools", {})
-        config["llm_tools"]["model"] = (
-            "qwen/qwen3-4b-thinking-2507" if self.assist_mode else "qwen/qwen3-4b-2507"
-        )
+        config["llm_tools"]["model"] = "qwen/qwen3-4b-2507"
 
         if self.assist_mode:
             allowed = [
                 name
                 for name in self.plugin_manager.handlers.keys()
-                if name.startswith("stt_assist") or name.startswith("ocr_assist")
+                if name.startswith("stt_assist") or name.startswith("ocr_assist") or name.startswith("assist.")
+            ]
+            self.plugin_manager.handlers = {
+                k: v for k, v in self.plugin_manager.handlers.items() if k in allowed
+            }
+            self.plugin_manager.tools_schema = [
+                s
+                for s in self.plugin_manager.tools_schema
+                if s.get("function", {}).get("name") in allowed
+            ]
+        else:
+            disallowed = ("stt_assist", "ocr_assist", "assist.")
+            allowed = [
+                name
+                for name in self.plugin_manager.handlers.keys()
+                if not name.startswith(disallowed)
             ]
             self.plugin_manager.handlers = {
                 k: v for k, v in self.plugin_manager.handlers.items() if k in allowed
