@@ -79,7 +79,7 @@ def test_transcriber_posts_event():
     assert events == [
         (
             "stt.text",
-            {"text": "hello", "source": "assist", "stt_model": "dummy"},
+            {"text": "hello", "source": "assist", "stt_model": "dummy", "assist": True},
             5,
         )
     ]
@@ -115,8 +115,8 @@ def test_notify_listening(monkeypatch):
     sys.modules["agent"] = pkg
     sys.modules["agent.sinks"] = sinks
     assist._notify_listening()
-    assert events == [("overlay.toast", {"title": "STT", "text": "마이크 청취 중"}, 5)]
-    assert ("STT", "마이크 청취 중") in called
+    assert events == [("overlay.toast", {"title": "Assist-STT", "text": "마이크 청취 중"}, 5)]
+    assert ("Assist-STT", "마이크 청취 중") in called
 
 
 def test_transcriber_skips_silence():

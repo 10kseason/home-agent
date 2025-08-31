@@ -46,6 +46,83 @@ limits:
   dedup_window_seconds: 3600
   max_queue_size: 1000
 
+tools: &tool_processes
+  ocr.start:
+    kind: "process"
+    id: "ocr"
+    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+    args: ["D:/jip/home-agent/OCR/main.py"]
+    cwd: "D:/jip/home-agent/OCR"
+    no_console: true
+    env:
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+  ocr.stop:
+    kind: "process_stop"
+    id: "ocr"
+    method: "terminate"
+  stt.start:
+    kind: "process"
+    id: "stt"
+    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+    args: ["D:/jip/home-agent/STT/VSRG-Ts-to-kr.py"]
+    cwd: "D:/jip/home-agent/STT"
+    no_console: true
+    shell: true
+    env:
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+  stt.stop:
+    kind: "process_stop"
+    id: "stt"
+    method: "terminate"
+  stt_assist.start:
+    kind: "process"
+    id: "stt_assist"
+    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+    args: ["D:/jip/home-agent/STT/assist.py", "--config", "D:/jip/home-agent/STT/Assist-config.yaml"]
+    cwd: "D:/jip/home-agent/STT"
+    no_console: true
+    env:
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+  stt_assist.stop:
+    kind: "process_stop"
+    id: "stt_assist"
+    method: "terminate"
+  ocr_assist.start:
+    kind: "process"
+    id: "ocr_assist"
+    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+    args: ["D:/jip/home-agent/OCR/OCR-Assist.py"]
+    cwd: "D:/jip/home-agent/OCR"
+    no_console: true
+    env:
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+  ocr_assist.stop:
+    kind: "process_stop"
+    id: "ocr_assist"
+    method: "terminate"
+  web.search:
+    kind: "process"
+    id: "web"
+    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
+    args:
+      - "D:/jip/home-agent/Overlay/plugins/web_search.py"
+      - "--query"
+      - "{q}"
+      - "--topk"
+      - "{k}"
+      - "--summarize"
+      - "--post"
+    cwd: "D:/jip/home-agent/Overlay/plugins"
+    no_console: false
+    env:
+      AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
+      WEB_SEARCH_REGION: "ko-KR"
+      WEB_SEARCH_LOCATION: "Busan, South Korea"
+      WEB_SEARCH_DEFAULT_TOPK: "15"
+      WEB_SEARCH_MAX_CHARS: "12000"
+      WEB_SEARCH_MAX_SENTENCES: "10"
+      WEB_SEARCH_MAX_FETCH: "6"
+
 # Overlay application and launch settings
 # 오버레이 애플리케이션 및 실행 설정
 overlay:
@@ -120,82 +197,7 @@ overlay:
     overlay_echo_raw: true
     log_events: true
     connection_test: true
-  tools:
-    ocr.start:
-      kind: "process"
-      id: "ocr"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/OCR/main.py"]
-      cwd: "D:/jip/home-agent/OCR"
-      no_console: true
-      env:
-        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-    ocr.stop:
-      kind: "process_stop"
-      id: "ocr"
-      method: "terminate"
-    stt.start:
-      kind: "process"
-      id: "stt"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/STT/VSRG-Ts-to-kr.py"]
-      cwd: "D:/jip/home-agent/STT"
-      no_console: true
-      shell: true
-      env:
-        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-    stt.stop:
-      kind: "process_stop"
-      id: "stt"
-      method: "terminate"
-    stt_assist.start:
-      kind: "process"
-      id: "stt"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/STT/assist.py", "--config", "D:/jip/home-agent/STT/Assist-config.yaml"]
-      cwd: "D:/jip/home-agent/STT"
-      no_console: true
-      env:
-        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-    stt_assist.stop:
-      kind: "process_stop"
-      id: "stt"
-      method: "terminate"
-    ocr_assist.start:
-      kind: "process"
-      id: "ocr"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/OCR/OCR-Assist.py"]
-      cwd: "D:/jip/home-agent/OCR"
-      no_console: true
-      env:
-        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-    ocr_assist.stop:
-      kind: "process_stop"
-      id: "ocr"
-      method: "terminate"
-    web.search:
-      kind: "process"
-      id: "web"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args:
-        - "D:/jip/home-agent/Overlay/plugins/web_search.py"
-        - "--query"
-        - "{q}"
-        - "--topk"
-        - "{k}"
-        - "--summarize"
-        - "--post"
-      cwd: "D:/jip/home-agent/Overlay/plugins"
-      no_console: false
-      env:
-        AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-        WEB_SEARCH_REGION: "ko-KR"
-        WEB_SEARCH_LOCATION: "Busan, South Korea"
-        WEB_SEARCH_DEFAULT_TOPK: "15"
-        WEB_SEARCH_MAX_CHARS: "12000"
-        WEB_SEARCH_MAX_SENTENCES: "10"
-        WEB_SEARCH_MAX_FETCH: "6"
+  tools: *tool_processes
   llm:
     endpoint: "http://127.0.0.1:11434/v1"
     model: "qwen3-14b"

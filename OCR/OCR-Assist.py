@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import pathlib
+import sys
+
+# Ensure repository root is on sys.path when executed directly
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
+
 import yaml
 
 import numpy as np
@@ -48,11 +53,11 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
 
 def _notify(msg: str) -> None:
     """Display a toast notification locally and via overlay."""
-    _post_event("overlay.toast", {"title": "OCR", "text": msg})
+    _post_event("overlay.toast", {"title": "Assist-OCR", "text": msg})
     try:
         from agent.sinks import toast_notify
 
-        toast_notify("OCR", msg)
+        toast_notify("Assist-OCR", msg)
     except Exception:
         pass
 
@@ -185,7 +190,7 @@ def main() -> None:
     text = _run_ocr(img, cfg)
     text = _refine_with_jan(text)
     if text:
-        _post_event("ocr.text", {"text": text, "source": "easyocr_assist"})
+        _post_event("ocr.text", {"text": text, "source": "easyocr_assist", "assist": True})
         print(text)
         if cfg.announce_text:
             speak(cfg.announce_text, lang="ko")

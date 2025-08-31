@@ -39,3 +39,6 @@
 - OCR assist now issues toast notifications when capturing and during OCR, and can refine EasyOCR output via a Jan Nano endpoint. Proper endpoint configuration and deeper Jan-based post-processing remain.
 - Jan Nano refinement now uses LM Studio or Ollama endpoints to run jan-nano.
 - STT assist is launched directly via python, shows transcriptions in the overlay, and only forwards STT text to the LLM when the wake keyword "루나" is spoken. Both assist and normal modes now use qwen/qwen3-4b-2507 and filter tools accordingly.
+- Resolved OCR Assist import path so 'tools.tts_espeak' loads regardless of launch directory, gave unique tool IDs for STT/OCR assist to avoid conflicts, and set STT Assist block size to 1s for more real-time listening.
+- STT assist transcripts now flag `assist` and display as "Assist-STT" on the overlay while OCR assist outputs show "Assist-OCR". Voice commands trigger screen capture, LLM-based summarize/translate, focus mode toggling, and repeat of the last action.
+- Root config now exposes STT/OCR assist processes under a shared `tools` block so the agent can launch them without "disabled" warnings. Created `docs/ASSIST_COMMANDS.md` to document assist labels and voice-command triggers; wake-word handling and deeper pipeline integration remain.
