@@ -11,10 +11,34 @@ sys.modules["assist"] = assist
 spec.loader.exec_module(assist)
 AssistTranscriber = assist.AssistTranscriber
 AssistConfig = assist.AssistConfig
+load_config = assist.load_config
 
 
 def test_select_device_passthrough():
     assert assist._select_input_device(3, None) == 3
+
+
+def test_load_config_default():
+    cfg = load_config()
+    assert cfg.model == "base"
+    assert "capture" in cfg.commands
+
+
+def test_load_config_override(tmp_path):
+    cfg_file = tmp_path / "Assist-config.yaml"
+    cfg_file.write_text(
+        """
+stt:
+  model: tiny
+assist:
+  commands:
+    hello: [hi]
+""",
+        encoding="utf-8",
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.model == "tiny"
+    assert cfg.commands["hello"] == ["hi"]
 
 
 def test_select_device_by_name(monkeypatch):
@@ -177,3 +201,39 @@ def test_transcriber_resamples(monkeypatch):
     text = transcriber.transcribe(pcm, sample_rate=8000)
     assert text == "hi"
     assert model.last_len == cfg.sample_rate
+
+
+class AssistModel:
+    def __init__(self):
+        self.model_size = "dummy"
+
+    def transcribe(self, audio, language="en"):
+        class Seg:
+            text = "assist tell me a joke"
+
+        return [Seg()], None
+
+
+def test_llm_called_on_assist_command(monkeypatch):
+    events, poster = collect_events()
+    cfg = AssistConfig()
+    model = AssistModel()
+    transcriber = AssistTranscriber(model, poster, cfg)
+
+    recorded = {}
+
+    def fake_llm(prompt):
+        recorded["prompt"] = prompt
+        return "why did the chicken?"
+
+    monkeypatch.setattr(transcriber, "_call_llm", fake_llm)
+    pcm = (np.full(cfg.sample_rate, 5000, dtype=np.int16)).tobytes()
+    transcriber.transcribe(pcm)
+    assert recorded["prompt"] == "tell me a joke"
+    assert events[0][0] == "stt.text"
+    assert events[1][0] == "cmd.detected" and events[1][1]["cmd"] == "assist"
+    assert events[2] == (
+        "llm.chat",
+        {"text": "why did the chicken?", "model": ""},
+        5,
+    )

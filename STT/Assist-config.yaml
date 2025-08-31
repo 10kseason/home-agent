@@ -6,6 +6,7 @@ assist:
     focus: ["집중모드", "집중 모드", "focus mode"]
     repeat: ["다시", "repeat", "もう一度", "再读", "再来一次"]
     stop: ["멈춰", "정지", "stop", "停止"]
+    assist: ["assist", "어시스트", "도와줘"]
   detection:
     require_boundary: false
     cooldown_ms: 800

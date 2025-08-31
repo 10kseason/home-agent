@@ -50,6 +50,12 @@ import requests
 import importlib.util
 import pathlib
 import sys
+
+# Ensure repository root is on sys.path so agent modules resolve even when
+# this script is launched from a different working directory.
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 try:
     from .cmd_detector import detect_command
 except Exception:  # pragma: no cover - script execution
@@ -153,11 +159,42 @@ class AssistConfig:
             "focus": ["집중모드", "집중 모드", "focus mode"],
             "repeat": ["다시", "repeat", "もう一度", "再读", "再来一次"],
             "stop": ["멈춰", "정지", "stop", "停止"],
+            "assist": ["assist", "어시스트", "도와줘"],
         }
     )
     detection: Dict[str, int | bool] = field(
         default_factory=lambda: {"require_boundary": False, "cooldown_ms": 800}
     )
+    wake_word: Optional[str] = None
+    llm: Dict[str, str] = field(default_factory=dict)
+
+
+def load_config(path: str | None = None) -> AssistConfig:
+    """Load AssistConfig from a YAML file.
+
+    If ``path`` is ``None`` the loader searches for ``Assist-config.yaml``
+    next to this script so the tool can be launched from any directory
+    without juggling working directories.
+    """
+
+    if path is None:
+        default = pathlib.Path(__file__).with_name("Assist-config.yaml")
+        path = str(default) if default.exists() else None
+
+    cfg_data: Dict[str, any] = {}
+    if path:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+        stt = raw.get("stt") or {}
+        assist = raw.get("assist") or {}
+        cfg_data.update(stt)
+        if "commands" in assist:
+            cfg_data["commands"] = assist["commands"]
+        if "detection" in assist:
+            cfg_data["detection"] = assist["detection"]
+        if "llm" in raw:
+            cfg_data["llm"] = raw["llm"]
+    return AssistConfig(**cfg_data)
 
 
 class AssistTranscriber:
@@ -174,6 +211,38 @@ class AssistTranscriber:
         self.event_func = event_func
         self.cfg = config or AssistConfig()
         self.ui = ui
+
+    def _call_llm(self, prompt: str) -> Optional[str]:
+        cfg = self.cfg.llm or {}
+        endpoint = cfg.get("endpoint")
+        model = cfg.get("model")
+        if not endpoint or not model:
+            return None
+        headers = {"Content-Type": "application/json"}
+        api_key = cfg.get("api_key", "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": cfg.get("system", "You are a helpful assistant.")},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": cfg.get("temperature", 0.2),
+            "max_tokens": cfg.get("max_new_tokens", 512),
+        }
+        try:
+            r = requests.post(
+                f"{endpoint}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=cfg.get("timeout", 30),
+            )
+            r.raise_for_status()
+            data = r.json()
+            return (data["choices"][0]["message"]["content"] or "").strip()
+        except Exception:
+            return None
 
     def transcribe(self, pcm16: bytes, sample_rate: int | None = None) -> str:
         """Transcribe a chunk of PCM16 mono audio.
@@ -222,6 +291,34 @@ class AssistTranscriber:
                     {"cmd": cmd, "ts": time.time()},
                     1,
                 )
+                if cmd == "assist":
+                    prompt = text
+                    for syn in self.cfg.commands.get("assist", []):
+                        if text.lower().startswith(syn.lower()):
+                            prompt = text[len(syn) :].lstrip()
+                            break
+                    resp = self._call_llm(prompt)
+                    if resp:
+                        self.event_func(
+                            "llm.chat",
+                            {
+                                "text": resp,
+                                "model": (self.cfg.llm or {}).get("model", ""),
+                            },
+                        )
+            elif self.cfg.wake_word:
+                w = self.cfg.wake_word.lower()
+                if text.lower().startswith(w):
+                    prompt = text[len(self.cfg.wake_word) :].lstrip()
+                    resp = self._call_llm(prompt)
+                    if resp:
+                        self.event_func(
+                            "llm.chat",
+                            {
+                                "text": resp,
+                                "model": (self.cfg.llm or {}).get("model", ""),
+                            },
+                        )
         return text
 
 
@@ -377,26 +474,19 @@ def run(cfg: AssistConfig) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assistive microphone STT")
     parser.add_argument("--config", help="Path to Assist-config.yaml", default=None)
-    parser.add_argument("--model", help="Whisper model size", default="base")
+    parser.add_argument("--model", help="Whisper model size", default=None)
     parser.add_argument("--device-index", type=int, default=None, help="Input device index")
     parser.add_argument(
         "--block-ms", type=int, default=3000, help="Chunk size in milliseconds"
     )
     args = parser.parse_args()
 
-    if args.config:
-        with open(args.config, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        cfg_data = {}
-        cfg_data.update(data.get("stt") or {})
-        cfg_data.update(data.get("assist") or {})
-        cfg = AssistConfig(**cfg_data)
-    else:
-        cfg = AssistConfig(
-            model=args.model,
-            block_ms=args.block_ms,
-            device_index=args.device_index,
-        )
+    cfg = load_config(args.config)
+    if args.model:
+        cfg.model = args.model
+    if args.device_index is not None:
+        cfg.device_index = args.device_index
+    cfg.block_ms = args.block_ms or cfg.block_ms
     run(cfg)
 
 

@@ -76,3 +76,17 @@ def test_refine_with_jan_supports_lmstudio(monkeypatch):
     out = ocr_assist._refine_with_jan("hi")
     assert called["url"] == "http://lmstudio:1234/v1/chat/completions"
     assert out == "refined"
+
+
+def test_main_announces_delay_and_progress(monkeypatch):
+    messages = []
+    monkeypatch.setattr(ocr_assist, "_notify", lambda msg: messages.append(msg))
+    monkeypatch.setattr(ocr_assist, "_capture_screen", lambda cfg: Image.new("RGB", (1, 1)))
+    monkeypatch.setattr(ocr_assist, "_run_ocr", lambda img, cfg: "")
+    sleeps = []
+    monkeypatch.setattr(ocr_assist.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(sys, "argv", ["OCR-Assist.py"])
+    ocr_assist.main()
+    assert messages[0].startswith("5초")
+    assert messages[1] == "이미지를 OCR 중입니다.."
+    assert sleeps == [5]

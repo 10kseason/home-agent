@@ -50,3 +50,7 @@
 - STT assist now defaults to the Whisper Base model with int8 compute and Korean-only recognition for improved accuracy; wake-word triggers and deeper integration remain.
 - AssistCommandPlugin now posts a '📋 Cmd Detected' overlay toast and dispatches capture/summarize/translate prompts to local LLMs. Wake-word triggers and further assist features remain.
 - Agent server now listens for 'stt_assist.*' and 'ocr_assist.*' events so LLM tool calls launch the assist STT/OCR scripts; capture commands dispatch 'ocr_assist.start'.
+- STT assist can now call a configured local LLM when its wake word prefix is spoken, emitting `llm.chat` results; deeper assist-script orchestration and wake-word polish remain.
+- STT assist also invokes the configured LLM when the CMD detector recognizes an `assist` command, so a wake word is no longer required; integration with broader assist scripts still pending.
+- Assist and OCR tools now use relative paths and a shared loader so they run from any working directory; docs note configuring local LLM endpoints for tool calls.
+- OCR assist now delays capture by 5 seconds, showing "5초 뒤 촬영 합니다" and then "이미지를 OCR 중입니다.." before processing; deeper assist integration remains.
