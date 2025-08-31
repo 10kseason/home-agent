@@ -290,7 +290,9 @@ def _select_input_device(
 def run(cfg: AssistConfig) -> None:
     """Capture microphone and stream to Whisper, showing subtitles."""
     if WhisperModel is None:
-        raise RuntimeError("faster-whisper is not installed")
+        raise RuntimeError(
+            "faster-whisper is not installed; run 'pip install -r requirements.txt' or 'pip install faster-whisper'"
+        )
     if sd is None:
         raise RuntimeError("sounddevice is not installed")
 
