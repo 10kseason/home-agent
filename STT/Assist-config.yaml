@@ -11,7 +11,7 @@ assist:
     cooldown_ms: 800
 stt:
   engine: faster-whisper
-  model: tiny            # Korean-focused Tiny model
+  model: base            # Whisper Base model
   compute_type: int8     # CPU friendly
   language: ko           # force Korean recognition
   vad: silero            # or webrtcvad

@@ -44,3 +44,7 @@
 - Root config now exposes STT/OCR assist processes under a shared `tools` block so the agent can launch them without "disabled" warnings. Created `docs/ASSIST_COMMANDS.md` to document assist labels and voice-command triggers; wake-word handling and deeper pipeline integration remain.
 - STT assist and its config now default to the Whisper Tiny Korean model, focusing transcription on Korean; wake-word handling and broader command orchestration still remain.
 - AssistCommandPlugin now triggers overlay toast notifications and publishes OCR/LLM events when voice commands are detected, wiring CMD detection to agent actions.
+- Added tool handlers and server support so LLM calls to `stt_assist.start` and `ocr_assist.start` launch the respective assist
+  processes. `cmd_detector.process_text` now posts `cmd.detected` events, enabling voice commands to flow through the agent and
+  overlay for actions like capture, summarize and translate.
+- STT assist now defaults to the Whisper Base model with int8 compute and Korean-only recognition for improved accuracy; wake-word triggers and deeper integration remain.
