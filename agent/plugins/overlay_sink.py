@@ -139,7 +139,8 @@ class EnhancedOverlaySink(BasePlugin):
                 "text": display_text,
                 "original": text,
                 "translation": translation,
-                "confidence": confidence
+                "confidence": confidence,
+                "assist": payload.get("assist", False)
             }
         }
 
@@ -156,11 +157,12 @@ class EnhancedOverlaySink(BasePlugin):
             display_text += f" 📍({bbox[0]:.0f},{bbox[1]:.0f})"
         
         return {
-            "type": "ocr.result", 
+            "type": "ocr.result",
             "payload": {
                 "text": display_text,
                 "bbox": bbox,
-                "confidence": confidence
+                "confidence": confidence,
+                "assist": payload.get("assist", False)
             }
         }
 

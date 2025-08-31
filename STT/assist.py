@@ -90,11 +90,11 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
 def _notify_listening() -> None:
     """Toast notification that STT Assist is listening."""
     msg = "마이크 청취 중"
-    _post_event("overlay.toast", {"title": "STT", "text": msg})
+    _post_event("overlay.toast", {"title": "Assist-STT", "text": msg})
     try:
         from agent.sinks import toast_notify
 
-        toast_notify("STT", msg)
+        toast_notify("Assist-STT", msg)
     except Exception:
         pass
 
@@ -210,6 +210,7 @@ class AssistTranscriber:
                 "text": text,
                 "source": "assist",
                 "stt_model": getattr(self.model, "model_size", "unknown"),
+                "assist": True,
             }
             self.event_func("stt.text", payload)
             if self.ui:
@@ -234,7 +235,7 @@ class SubtitleUI:
         self.chat_box = None
         if self.enabled:
             self.root = tk.Tk()
-            self.root.title("Assist STT")
+            self.root.title("Assist-STT")
             self.root.geometry("600x240+60+60")
             self.root.configure(bg="#000000")
             self.root.attributes("-topmost", True)

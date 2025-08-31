@@ -166,7 +166,8 @@ class EventHandler:
         if model:
             display_text += f" ({model})"
 
-        self._emit_safe("🎤 STT", display_text)
+        label = "Assist-STT" if payload.get("assist") else "🎤 STT"
+        self._emit_safe(label, display_text)
         return True
     
     def _handle_ocr(self, payload: Dict[str, Any]) -> bool:
@@ -188,7 +189,8 @@ class EventHandler:
         if confidence > 0:
             display_text += f" ({confidence:.0%})"
             
-        self._emit_safe("👁️ OCR", display_text)
+        label = "Assist-OCR" if payload.get("assist") else "👁️ OCR"
+        self._emit_safe(label, display_text)
         return True
     
     def _handle_web_search(self, payload: Dict[str, Any]) -> bool:

@@ -24,8 +24,14 @@ contributors.
   generation, ROI‑OCR, ranking, rule-based NLU, two‑stage runner, barge‑in and
   preserve‑lock logic.
 - **STT Assist** – `STT/assist.py` streams microphone audio through Whisper,
-  auto-selecting the default input device and posting `stt.text` events when
-  accessibility mode is active.
+  auto-selecting the default input device and posting `stt.text` events with
+  an `assist` flag so the overlay labels them **Assist-STT**.
+- **OCR Assist** – `OCR/OCR-Assist.py` captures a screenshot, runs OCR, and
+  emits `ocr.text` events marked `assist`, appearing as **Assist-OCR** on the
+  overlay.
+- **Assist Commands** – `agent/plugins/assist_cmd_plugin.py` listens for
+  keywords like capture, summarize, translate, repeat, or focus mode in STT
+  transcripts and triggers the corresponding tools.
 - **Testing & Metrics** – `tests/cards.md` lists manual test scenarios while
   `metrics/slo.md` defines latency and failure SLOs.
 
