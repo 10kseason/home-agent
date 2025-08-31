@@ -48,3 +48,5 @@
   processes. `cmd_detector.process_text` now posts `cmd.detected` events, enabling voice commands to flow through the agent and
   overlay for actions like capture, summarize and translate.
 - STT assist now defaults to the Whisper Base model with int8 compute and Korean-only recognition for improved accuracy; wake-word triggers and deeper integration remain.
+- AssistCommandPlugin now posts a '📋 Cmd Detected' overlay toast and dispatches capture/summarize/translate prompts to local LLMs. Wake-word triggers and further assist features remain.
+- Agent server now listens for 'stt_assist.*' and 'ocr_assist.*' events so LLM tool calls launch the assist STT/OCR scripts; capture commands dispatch 'ocr_assist.start'.

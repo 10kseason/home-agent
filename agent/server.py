@@ -132,7 +132,9 @@ def create_app(ctx, plugins=None):
                         app.state.stt_proc = None
 
             ctx.bus.subscribe("stt.", _stt_handler)
+            ctx.bus.subscribe("stt_assist.", _stt_handler)
             app.state._plugin_unsubs.append(("stt.", _stt_handler))
+            app.state._plugin_unsubs.append(("stt_assist.", _stt_handler))
 
             async def _ocr_handler(ev):
                 if ev.type in ("ocr.start", "ocr_assist.start"):
@@ -146,7 +148,9 @@ def create_app(ctx, plugins=None):
                     app.state.ocr_proc = None
 
             ctx.bus.subscribe("ocr.", _ocr_handler)
+            ctx.bus.subscribe("ocr_assist.", _ocr_handler)
             app.state._plugin_unsubs.append(("ocr.", _ocr_handler))
+            app.state._plugin_unsubs.append(("ocr_assist.", _ocr_handler))
 
             async def _assist_handler(ev):
                 if ev.type == "assist.on":
