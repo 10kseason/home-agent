@@ -8,7 +8,7 @@ If no input device is specified, the first available system microphone is
 chosen automatically for convenience.
 
 Example:
-    python assist.py --model tiny.en
+    python assist.py --model base
 
 The module is designed to be lightweight and testable. The
 `AssistTranscriber` accepts a pre-instantiated model and event posting
@@ -130,7 +130,7 @@ class AssistConfig:
     """Configuration for assistive STT."""
 
     engine: str = "faster-whisper"
-    model: str = "tiny"
+    model: str = "base"
     compute_type: str = "int8"
     language: str = "ko"
     vad: str = "silero"
@@ -377,7 +377,7 @@ def run(cfg: AssistConfig) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assistive microphone STT")
     parser.add_argument("--config", help="Path to Assist-config.yaml", default=None)
-    parser.add_argument("--model", help="Whisper model size", default="small")
+    parser.add_argument("--model", help="Whisper model size", default="base")
     parser.add_argument("--device-index", type=int, default=None, help="Input device index")
     parser.add_argument(
         "--block-ms", type=int, default=3000, help="Chunk size in milliseconds"

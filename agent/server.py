@@ -114,14 +114,14 @@ def create_app(ctx, plugins=None):
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
 
             async def _stt_handler(ev):
-                if ev.type == "stt.start":
+                if ev.type in ("stt.start", "stt_assist.start"):
                     if app.state.stt_proc and app.state.stt_proc.poll() is None:
                         logger.info("[stt] already running")
                     else:
-                        key = "stt_assist.start" if app.state.assist_mode else "stt.start"
+                        key = "stt_assist.start" if ev.type == "stt_assist.start" or app.state.assist_mode else "stt.start"
                         app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), key)
-                elif ev.type == "stt.stop":
-                    if app.state.assist_mode:
+                elif ev.type in ("stt.stop", "stt_assist.stop"):
+                    if app.state.assist_mode and ev.type != "stt_assist.stop":
                         logger.info("[stt] stop ignored in assist mode")
                     else:
                         await _terminate_proc(
@@ -135,13 +135,13 @@ def create_app(ctx, plugins=None):
             app.state._plugin_unsubs.append(("stt.", _stt_handler))
 
             async def _ocr_handler(ev):
-                if ev.type == "ocr.start":
+                if ev.type in ("ocr.start", "ocr_assist.start"):
                     if app.state.ocr_proc and app.state.ocr_proc.poll() is None:
                         logger.info("[ocr] already running")
                     else:
-                        key = "ocr_assist.start" if app.state.assist_mode else "ocr.start"
+                        key = "ocr_assist.start" if ev.type == "ocr_assist.start" or app.state.assist_mode else "ocr.start"
                         app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), key)
-                elif ev.type == "ocr.stop":
+                elif ev.type in ("ocr.stop", "ocr_assist.stop"):
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
                     app.state.ocr_proc = None
 

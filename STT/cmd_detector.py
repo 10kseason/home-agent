@@ -1,6 +1,16 @@
 import re
 import time
-from typing import Optional
+import os
+from typing import Optional, Callable
+
+import requests
+
+_EVENT_URL = (
+    os.environ.get("EVENT_URL")
+    or os.environ.get("AGENT_EVENT_URL")
+    or "http://127.0.0.1:8350/event"
+)
+_EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
 _LAST_CMD_MS = -1e9
 
@@ -24,6 +34,33 @@ def detect_command(text: str, cfg) -> Optional[str]:
                     _LAST_CMD_MS = now_ms
                     return cmd
     return None
+
+def process_text(text: str, cfg, event_func: Callable[[str, dict, int], None] | None = None) -> Optional[str]:
+    """Detect command and post ``cmd.detected`` event if found.
+
+    Parameters
+    ----------
+    text:
+        Recognized speech text.
+    cfg:
+        Assist configuration containing command mappings.
+    event_func:
+        Optional custom event poster. Defaults to posting to the agent server.
+    """
+    cmd = detect_command(text, cfg)
+    if cmd:
+        _post_event = event_func or _default_post
+        _post_event("cmd.detected", {"cmd": cmd, "ts": time.time()}, 1)
+    return cmd
+
+def _default_post(_type: str, payload: dict, _prio: int = 5) -> None:
+    try:
+        headers = {"Content-Type": "application/json"}
+        if _EVENT_KEY:
+            headers["X-Agent-Key"] = _EVENT_KEY
+        requests.post(_EVENT_URL, json={"type": _type, "payload": payload, "priority": _prio}, headers=headers, timeout=3)
+    except Exception:
+        pass
 
 def _reset_state() -> None:
     global _LAST_CMD_MS

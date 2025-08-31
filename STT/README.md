@@ -59,7 +59,7 @@ Recognized utterances are posted as `stt.text` events to the agent bus so the
 accessibility workflow can react. Launch it manually with:
 
 ```bash
-python assist.py --model tiny.en
+python assist.py --model base
 ```
 
 The script auto-selects the system microphone when no device is specified, so
