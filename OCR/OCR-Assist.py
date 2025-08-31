@@ -46,6 +46,61 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         pass
 
 
+def _notify(msg: str) -> None:
+    """Display a toast notification locally and via overlay."""
+    _post_event("overlay.toast", {"title": "OCR", "text": msg})
+    try:
+        from agent.sinks import toast_notify
+
+        toast_notify("OCR", msg)
+    except Exception:
+        pass
+
+
+def _refine_with_jan(text: str) -> str:
+    """Send OCR text to a jan-nano model served by LM Studio or Ollama."""
+    endpoint = (
+        os.environ.get("JAN_ENDPOINT")
+        or os.environ.get("LM_STUDIO_ENDPOINT")
+        or os.environ.get("OLLAMA_ENDPOINT")
+    )
+    if not endpoint or not text:
+        return text
+    model = (
+        os.environ.get("JAN_MODEL")
+        or os.environ.get("LM_STUDIO_MODEL")
+        or os.environ.get("OLLAMA_MODEL")
+        or "jan-nano"
+    )
+    api_key = (
+        os.environ.get("JAN_API_KEY")
+        or os.environ.get("LM_STUDIO_API_KEY")
+        or os.environ.get("OLLAMA_API_KEY")
+        or ""
+    )
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "Refine OCR output."},
+            {"role": "user", "content": text},
+        ],
+        "temperature": 0.2,
+        "reasoning": {"effort": "high"},
+    }
+    try:
+        r = requests.post(
+            f"{endpoint}/chat/completions", headers=headers, json=payload, timeout=10
+        )
+        r.raise_for_status()
+        data = r.json()
+        return (data["choices"][0]["message"]["content"] or "").strip() or text
+    except Exception:
+        return text
+
+
 @dataclass
 class OCRAssistConfig:
     """Configuration for assistive OCR capture."""
@@ -125,7 +180,10 @@ def main() -> None:
         _EVENT_KEY = cfg.event_key
 
     img = _capture_screen(cfg)
+    _notify("방금 OCR 어시스트가 캡쳐했어요.")
+    _notify("OCR진행 중입니다.")
     text = _run_ocr(img, cfg)
+    text = _refine_with_jan(text)
     if text:
         _post_event("ocr.text", {"text": text, "source": "easyocr_assist"})
         print(text)

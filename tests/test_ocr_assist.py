@@ -55,3 +55,24 @@ def test_run_ocr_uses_config(monkeypatch):
     assert calls["langs"] == ["en"]
     assert calls["gpu"] is False
     assert text == "ok"
+
+
+def test_refine_with_jan_supports_lmstudio(monkeypatch):
+    called = {}
+
+    class DummyResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "refined"}}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        called["url"] = url
+        return DummyResp()
+
+    monkeypatch.setenv("LM_STUDIO_ENDPOINT", "http://lmstudio:1234/v1")
+    monkeypatch.setattr(ocr_assist.requests, "post", fake_post)
+    out = ocr_assist._refine_with_jan("hi")
+    assert called["url"] == "http://lmstudio:1234/v1/chat/completions"
+    assert out == "refined"

@@ -149,3 +149,31 @@ def test_transcriber_filters_you():
     text = transcriber.transcribe(pcm)
     assert text == ""
     assert events == []
+
+
+def test_resample_pcm16_length():
+    pcm = np.arange(8000, dtype=np.int16).tobytes()
+    out = assist._resample_pcm16(pcm, 8000, 16_000)
+    assert len(out) == 16_000 * 2
+
+
+class LenModel:
+    def __init__(self):
+        self.model_size = "dummy"
+        self.last_len = None
+
+    def transcribe(self, audio, language="en"):
+        self.last_len = len(audio)
+        class Seg:
+            text = "hi"
+        return [Seg()], None
+
+
+def test_transcriber_resamples(monkeypatch):
+    model = LenModel()
+    cfg = AssistConfig()
+    transcriber = AssistTranscriber(model, lambda *args: None, cfg)
+    pcm = (np.full(8000, 5000, dtype=np.int16)).tobytes()
+    text = transcriber.transcribe(pcm, sample_rate=8000)
+    assert text == "hi"
+    assert model.last_len == cfg.sample_rate
