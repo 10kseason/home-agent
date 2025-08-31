@@ -229,7 +229,7 @@ ocr:
   show_result_window: false
   show_result_popup: true
   popup_content: "translation"
-  engine: paddle
+  engine: easyocr
   languages: ['ko', 'en', 'ja', 'zh']
   topk: 5
   conf_threshold: 0.6
@@ -317,6 +317,7 @@ stt:
 # TTS settings
 # TTS 설정
 tts:
+  enable: false
   backend_order: ["espeak-ng"]
   espeak_ng:
     voices: { ko: "ko", en: "en-us", ja: "ja", zh: "zh" }

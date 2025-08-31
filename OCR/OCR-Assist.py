@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 import pathlib
@@ -17,10 +17,10 @@ from mss import mss
 import requests
 from tools.tts_espeak import speak
 
-try:  # PaddleOCR is heavy; import lazily
-    from paddleocr import PaddleOCR
+try:  # EasyOCR downloads models on first use
+    import easyocr
 except Exception:  # pragma: no cover - runtime dependency
-    PaddleOCR = None
+    easyocr = None
 
 _EVENT_URL = (
     os.environ.get("EVENT_URL")
@@ -52,11 +52,8 @@ class OCRAssistConfig:
 
     monitor: int = 1  # 1-based monitor index
     region: Optional[List[int]] = None  # [left, top, width, height]
-    lang: str = "korean"
-    use_angle_cls: bool = True
-    det_model_dir: Optional[str] = None
-    rec_model_dir: Optional[str] = None
-    device: str = "cpu"
+    langs: List[str] = field(default_factory=lambda: ["ko"])
+    gpu: bool = False
     announce_text: str = "찍었습니다."
     event_url: Optional[str] = None
     event_key: Optional[str] = None
@@ -77,7 +74,8 @@ def load_config(path: str | None = None) -> OCRAssistConfig:
         data["monitor"] = cap.get("monitor", 1)
         data["region"] = cap.get("region")
         ocr = raw.get("ocr") or {}
-        data.update(ocr)
+        data["langs"] = ocr.get("langs", ["ko"])
+        data["gpu"] = ocr.get("gpu", False)
         assist = raw.get("assist") or {}
         if "announce_text" in assist:
             data["announce_text"] = assist["announce_text"]
@@ -106,22 +104,12 @@ def _capture_screen(cfg: OCRAssistConfig) -> Image.Image:
 
 
 def _run_ocr(img: Image.Image, cfg: OCRAssistConfig) -> str:
-    if PaddleOCR is None:
-        raise RuntimeError("paddleocr is not installed")
-    ocr = PaddleOCR(
-        use_angle_cls=cfg.use_angle_cls,
-        lang=cfg.lang,
-        det_model_dir=cfg.det_model_dir,
-        rec_model_dir=cfg.rec_model_dir,
-        device=cfg.device,
-    )
+    if easyocr is None:
+        raise RuntimeError("easyocr is not installed")
+    reader = easyocr.Reader(cfg.langs, gpu=cfg.gpu)
     np_img = np.array(img)
-    result = ocr.ocr(np_img, cls=cfg.use_angle_cls)
-    lines: List[str] = []
-    for line in result:
-        for item in line:
-            lines.append(item[1][0])
-    return "\n".join(lines).strip()
+    result = reader.readtext(np_img, detail=0)
+    return "\n".join(result).strip()
 
 
 def main() -> None:
@@ -139,7 +127,7 @@ def main() -> None:
     img = _capture_screen(cfg)
     text = _run_ocr(img, cfg)
     if text:
-        _post_event("ocr.text", {"text": text, "source": "paddle_assist"})
+        _post_event("ocr.text", {"text": text, "source": "easyocr_assist"})
         print(text)
         if cfg.announce_text:
             speak(cfg.announce_text, lang="ko")

@@ -30,3 +30,6 @@
 - OCR Assist now loads a detailed Assist-config for monitor selection, region cropping, and PaddleOCR options; full ROI capture and advanced OCR features still pending.
 - STT assist now issues toast notifications at start and again after 10 minutes to indicate microphone capture, and mixes all input channels so every microphone is heard. Wake-word triggers and privacy refinements remain.
 - Assist mode can now be toggled via `/assist on|off` or persisted through `config.yaml`'s `accessibility` flag; overlay broadcasts `assist.on/off` events and updates the config so agent and overlay launch in assist mode when enabled.
+- Added OCR dependencies (psutil, torch, pytesseract) and updated the first-run batch script to pre-download Whisper and PaddleOCR models so STT/OCR assists start smoothly. Further assist integration and wake-word triggers remain.
+- Replaced PaddleOCR/Tesseract with EasyOCR for assist mode, updated dependencies and first-run script to preload models. Started FocusMode toggle plugin and disabled TTS via config for easy later activation. Full FocusMode pipeline and TTS streaming still pending.
+- STT assist now warns when downloading Whisper model, keeps subtitle window topmost with larger text, filters silence/'You', and batch script notes model download may be slow. Further wake-word controls and overlay polish remain.

@@ -81,9 +81,11 @@ def _segment(text: str) -> List[str]:
 
 def speak(text: str, lang: str = "ko") -> None:
     """Speak ``text`` using eSpeak NG with config-driven parameters."""
+    cfg = _load_cfg()
+    if not cfg.get("enable"):
+        return
     if not _espeak_available():
         return
-    cfg = _load_cfg()
     ecfg = cfg.get("espeak_ng", {})
     voices = ecfg.get("voices", {})
     voice = voices.get(lang, voices.get("ko", "ko"))
