@@ -9,13 +9,13 @@ plugin keeps short-term state so "번역" after "요약" translates the summary
 rather than the original OCR text and "다시" repeats the previous command.
 """
 
+from . import BasePlugin
+from agent.schemas import Event
+import json
 from typing import Optional
 
 import httpx
 from loguru import logger
-
-from . import BasePlugin
-from agent.schemas import Event
 
 
 class AssistCommandPlugin(BasePlugin):
@@ -74,7 +74,33 @@ class AssistCommandPlugin(BasePlugin):
                 )
 
         elif cmd == "translate":
-            text = self.last_summary if self.prev_cmd == "summarize" and self.last_summary else self.last_ocr
+            # If no recent summary exists, perform a combined summarize+translate
+            if self.prev_cmd != "summarize" or not self.last_summary:
+                if not self.last_ocr:
+                    return
+                await self._toast("🌐 번역")
+                res = await self._summarize_translate(self.last_ocr)
+                if res:
+                    summary, translated = res
+                    self.last_summary = summary
+                    model = self._translate_model()
+                    await self.ctx.bus.publish(
+                        Event(
+                            type="llm.summary",
+                            payload={"text": summary, "model": model},
+                        )
+                    )
+                    await self.ctx.bus.publish(
+                        Event(
+                            type="llm.translation",
+                            payload={"text": translated, "model": model},
+                        )
+                    )
+                self.prev_cmd = "summarize"
+                return
+
+            # Otherwise translate the cached summary
+            text = self.last_summary
             if not text:
                 return
             await self._toast("🌐 번역")
@@ -86,6 +112,8 @@ class AssistCommandPlugin(BasePlugin):
                         payload={"text": translated, "model": self._translate_model()},
                     )
                 )
+            self.prev_cmd = "summarize"
+            return
 
         elif cmd == "focus":
             await self._toast("🎯 집중모드")
@@ -163,5 +191,46 @@ class AssistCommandPlugin(BasePlugin):
                 return (data["choices"][0]["message"]["content"] or "").strip()
         except Exception as e:
             logger.error(f"[assist_command] translate error: {e}")
+            return None
+
+    async def _summarize_translate(self, text: str) -> Optional[tuple[str, str]]:
+        """Request a summary and translation in a single LLM call."""
+        cfg = self.ctx.config.get("translate", {})
+        endpoint = cfg.get("endpoint")
+        model = cfg.get("model")
+        api_key = cfg.get("api_key", "")
+        if not endpoint or not model:
+            logger.warning("[assist_command] translate not configured")
+            return None
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Summarize and translate to Korean. Respond in JSON with keys 'summary' and 'translation'.",
+                },
+                {"role": "user", "content": text},
+            ],
+            "temperature": cfg.get("temperature", 0.2),
+            "max_tokens": cfg.get("max_new_tokens", 1024),
+        }
+        timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                r = await client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
+                r.raise_for_status()
+                data = r.json()
+                content = data["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
+                return (
+                    (parsed.get("summary") or "").strip(),
+                    (parsed.get("translation") or "").strip(),
+                )
+        except Exception as e:
+            logger.error(f"[assist_command] summarize+translate error: {e}")
             return None
 
