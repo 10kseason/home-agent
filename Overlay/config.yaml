@@ -1,9 +1,9 @@
 llm_tools:    # 4B (빠른 플래너)
   endpoint: "http://127.0.0.1:1234/v1"
-  model: "qwen/qwen3-4b-2507"
+  model: "jan/jan-nano"
   api_key: "lm-studio"
   timeout_seconds: 60
-  max_new_tokens: 2000
+  max_new_tokens: 4096
   temperature: 0.0
 
 llm_chat:     # 14B (기본 채팅)
@@ -131,7 +131,8 @@ llm:
 
 llm_tools_small:
   endpoint: "http://127.0.0.1:11434/v1"
-  model: "qwen/qwen3-4b-2507"
+  model: "jan/jan-nano"
+  max_new_tokens: 4096
 
 llm_tools_chat:
   endpoint: "http://127.0.0.1:11434/v1"
