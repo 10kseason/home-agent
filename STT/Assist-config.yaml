@@ -11,9 +11,9 @@ assist:
     cooldown_ms: 800
 stt:
   engine: faster-whisper
-  model: small           # multilingual
+  model: tiny            # Korean-focused Tiny model
   compute_type: int8     # CPU friendly
-  language: auto         # auto-detect ko/en/ja/zh
+  language: ko           # force Korean recognition
   vad: silero            # or webrtcvad
   sample_rate: 16000     # Hz
   block_ms: 1000         # shorter chunks for real-time responsiveness

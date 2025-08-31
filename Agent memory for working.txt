@@ -42,3 +42,5 @@
 - Resolved OCR Assist import path so 'tools.tts_espeak' loads regardless of launch directory, gave unique tool IDs for STT/OCR assist to avoid conflicts, and set STT Assist block size to 1s for more real-time listening.
 - STT assist transcripts now flag `assist` and display as "Assist-STT" on the overlay while OCR assist outputs show "Assist-OCR". Voice commands trigger screen capture, LLM-based summarize/translate, focus mode toggling, and repeat of the last action.
 - Root config now exposes STT/OCR assist processes under a shared `tools` block so the agent can launch them without "disabled" warnings. Created `docs/ASSIST_COMMANDS.md` to document assist labels and voice-command triggers; wake-word handling and deeper pipeline integration remain.
+- STT assist and its config now default to the Whisper Tiny Korean model, focusing transcription on Korean; wake-word handling and broader command orchestration still remain.
+- AssistCommandPlugin now triggers overlay toast notifications and publishes OCR/LLM events when voice commands are detected, wiring CMD detection to agent actions.

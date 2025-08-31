@@ -130,9 +130,9 @@ class AssistConfig:
     """Configuration for assistive STT."""
 
     engine: str = "faster-whisper"
-    model: str = "small"
+    model: str = "tiny"
     compute_type: str = "int8"
-    language: str = "auto"
+    language: str = "ko"
     vad: str = "silero"
     chunk_sec: float = 7.0
     chunk_overlap_sec: float = 0.5
