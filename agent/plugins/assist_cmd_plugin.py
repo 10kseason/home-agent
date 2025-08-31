@@ -28,6 +28,12 @@ class AssistCommandPlugin(BasePlugin):
         self.last_summary: str = ""
         self.prev_cmd: Optional[str] = None
 
+    async def _toast(self, text: str) -> None:
+        """Send a small overlay notification."""
+        await self.ctx.bus.publish(
+            Event(type="overlay.toast", payload={"title": "Assist", "text": text})
+        )
+
     async def handle(self, event):
         if event.type == "ocr.text":
             # Track latest OCR output for summarize/translate commands
@@ -47,11 +53,13 @@ class AssistCommandPlugin(BasePlugin):
             return
 
         if cmd == "capture":
+            await self._toast("📸 캡처")
             await self.ctx.bus.publish(Event(type="ocr.start", payload={}))
 
         elif cmd == "summarize":
             if not self.last_ocr:
                 return
+            await self._toast("📝 요약")
             summary = await self._summarize(self.last_ocr)
             if summary:
                 self.last_summary = summary
@@ -66,6 +74,7 @@ class AssistCommandPlugin(BasePlugin):
             text = self.last_summary if self.prev_cmd == "summarize" and self.last_summary else self.last_ocr
             if not text:
                 return
+            await self._toast("🌐 번역")
             translated = await self._translate(text)
             if translated:
                 await self.ctx.bus.publish(
@@ -76,6 +85,7 @@ class AssistCommandPlugin(BasePlugin):
                 )
 
         elif cmd == "focus":
+            await self._toast("🎯 집중모드")
             await self.ctx.bus.publish(Event(type="FocusMode.toggle", payload={"on": True}))
 
         self.prev_cmd = cmd
