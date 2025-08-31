@@ -18,3 +18,19 @@ This document summarizes the assistive modules and the command plugin that react
 | "집중모드" | Toggle focus mode through the focus-assist tool |
 
 All actions are recorded via the agent server so sessions can be reviewed or repeated later.
+
+## Local LLM & Path Notes
+Both assist scripts resolve their `Assist-config.yaml` relative to the script
+file, so they run correctly even when launched from another working
+directory. When the overlay enters assist mode and a local model (e.g. LM
+Studio or Ollama) calls `stt_assist.start` or `ocr_assist.start`, the agent
+spawns these tools using the relative paths in `config.yaml`.
+
+- **STT Assist** can forward wake-word prompts to a local LLM if `llm.endpoint`
+  and `llm.model` are set in `STT/Assist-config.yaml`.
+- **OCR Assist** refines EasyOCR output when `LM_STUDIO_ENDPOINT`/
+  `OLLAMA_ENDPOINT` (and corresponding `*_MODEL` variables) are defined in the
+  environment.
+
+These hooks allow a local LLM to orchestrate capture, summarization and
+translation without path issues.

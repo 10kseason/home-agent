@@ -41,9 +41,9 @@ tools:
     stt_assist.start:
       kind: "process"
       id: "stt"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/STT/assist.py", "--config", "D:/jip/home-agent/STT/Assist-config.yaml"]
-      cwd: "D:/jip/home-agent/STT"
+      command: "python"
+      args: ["assist.py", "--config", "Assist-config.yaml"]
+      cwd: "../STT"
       no_console: true
     stt_assist.stop:
       kind: "process_stop"
@@ -53,9 +53,9 @@ tools:
     ocr_assist.start:
       kind: "process"
       id: "ocr"
-      command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-      args: ["D:/jip/home-agent/OCR/OCR-Assist.py"]
-      cwd: "D:/jip/home-agent/OCR"
+      command: "python"
+      args: ["OCR-Assist.py"]
+      cwd: "../OCR"
       no_console: true
     ocr_assist.stop:
       kind: "process_stop"

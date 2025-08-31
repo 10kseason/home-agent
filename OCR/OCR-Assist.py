@@ -10,6 +10,7 @@ from typing import List, Optional
 
 import pathlib
 import sys
+import time
 
 # Ensure repository root is on sys.path when executed directly
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
@@ -184,9 +185,10 @@ def main() -> None:
     if cfg.event_key:
         _EVENT_KEY = cfg.event_key
 
+    _notify("5초 뒤 촬영 합니다")
+    time.sleep(5)
     img = _capture_screen(cfg)
-    _notify("방금 OCR 어시스트가 캡쳐했어요.")
-    _notify("OCR진행 중입니다.")
+    _notify("이미지를 OCR 중입니다..")
     text = _run_ocr(img, cfg)
     text = _refine_with_jan(text)
     if text:
