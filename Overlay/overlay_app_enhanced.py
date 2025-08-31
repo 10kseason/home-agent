@@ -677,7 +677,7 @@ def create_enhanced_config():
     config = {
         "llm_tools": {
             "endpoint": "http://127.0.0.1:1234/v1",
-            "model": "qwen3-4b-instruct",
+            "model": "qwen/qwen3-4b-2507",
             "api_key": "",
             "timeout_seconds": 60
         },
