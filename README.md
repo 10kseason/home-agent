@@ -14,7 +14,7 @@
 
 📦 필요 모델 목록
 Qwen2.5-VL-7B (고속 OCR+한국어 번역)
-Qwen3 2507 4B
+jan-nano
 Qwen3 8B
 
 
@@ -47,8 +47,8 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 ## ⚙️ 동작 구조
 
 ### 기본 오케스트레이션
-- **Qwen3 2507 4B**  
-  → Overlay의 대부분 기능(툴 호출 담당)  
+- **jan-nano**
+  → Overlay의 대부분 기능(툴 호출 담당)
 
 ### OCR 파이프라인
 - **LM Studio**에서 4B 종료 후:
@@ -63,7 +63,7 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 
 ### STT 파이프라인
 - `Whisper Tiny / Faster` : 음성 전사 (BBC 뉴스도 인식 가능)
-- `Qwen3-2507-4B` : 전사 결과물 한국어 번역
+- `jan-nano` : 전사 결과물 한국어 번역
 - 결과는 Overlay 및 `VSRG-Ts-to-KR.py (STT)` 창에 표시, **화자 분리 지원**
 
 ### 오케스트레이션 순환
@@ -84,7 +84,7 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 
 ## 📦 필요 모델 목록
 - **Qwen2.5-VL-7B**
-- **Qwen3 2507 4B**
+- **jan-nano**
 - **Qwen3 8B**
 - **GPT-OSS-20B** (선택적)
 - **Qwen3 14B** (선택적)
