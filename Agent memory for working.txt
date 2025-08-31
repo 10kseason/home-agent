@@ -35,3 +35,6 @@
 - STT assist now warns when downloading Whisper model, keeps subtitle window topmost with larger text, filters silence/'You', and batch script notes model download may be slow. Further wake-word controls and overlay polish remain.
 - STT assist now warns to install faster-whisper if missing, telling users to run 'pip install faster-whisper'; full STT integration remains.
 - requirements.txt now marks faster-whisper as required for live STT and the assist script mentions installing via the requirements file.
+- STT assist resamples incoming audio to the configured sample rate so external sources with different bitrates are handled. Full wake-word control and broader assist features still pending.
+- OCR assist now issues toast notifications when capturing and during OCR, and can refine EasyOCR output via a Jan Nano endpoint. Proper endpoint configuration and deeper Jan-based post-processing remain.
+- Jan Nano refinement now uses LM Studio or Ollama endpoints to run jan-nano.

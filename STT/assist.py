@@ -23,6 +23,7 @@ import queue
 import os
 import threading
 import time
+from math import gcd
 from typing import Callable, Dict, List, Optional
 import yaml
 
@@ -107,6 +108,23 @@ def _mix_channels(pcm: bytes, channels: int) -> bytes:
     return data.tobytes()
 
 
+def _resample_pcm16(pcm: bytes, src_rate: int, dst_rate: int) -> bytes:
+    """Resample mono PCM16 audio to the desired sample rate."""
+    if src_rate == dst_rate:
+        return bytes(pcm)
+    try:
+        from scipy.signal import resample_poly
+    except Exception:  # pragma: no cover - optional dependency
+        raise RuntimeError("scipy is required for resampling")
+    data = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+    g = gcd(src_rate, dst_rate)
+    up = dst_rate // g
+    down = src_rate // g
+    resampled = resample_poly(data, up, down)
+    resampled = np.clip(resampled, -32768, 32767).astype(np.int16)
+    return resampled.tobytes()
+
+
 @dataclass
 class AssistConfig:
     """Configuration for assistive STT."""
@@ -157,8 +175,14 @@ class AssistTranscriber:
         self.cfg = config or AssistConfig()
         self.ui = ui
 
-    def transcribe(self, pcm16: bytes) -> str:
-        """Transcribe a chunk of PCM16 mono audio."""
+    def transcribe(self, pcm16: bytes, sample_rate: int | None = None) -> str:
+        """Transcribe a chunk of PCM16 mono audio.
+
+        If ``sample_rate`` is provided and differs from ``cfg.sample_rate`` the
+        audio is resampled so Whisper receives the expected rate.
+        """
+        if sample_rate and sample_rate != self.cfg.sample_rate:
+            pcm16 = _resample_pcm16(pcm16, sample_rate, self.cfg.sample_rate)
         raw = np.frombuffer(pcm16, dtype=np.int16)
         if np.abs(raw).mean() < 100:
             return ""
