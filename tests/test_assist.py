@@ -73,7 +73,7 @@ def test_transcriber_posts_event():
     model = DummyModel()
     cfg = AssistConfig()
     transcriber = AssistTranscriber(model, poster, cfg)
-    pcm = (np.ones(cfg.sample_rate, dtype=np.int16)).tobytes()
+    pcm = (np.full(cfg.sample_rate, 5000, dtype=np.int16)).tobytes()
     text = transcriber.transcribe(pcm)
     assert text == "hello"
     assert events == [
@@ -117,3 +117,35 @@ def test_notify_listening(monkeypatch):
     assist._notify_listening()
     assert events == [("overlay.toast", {"title": "STT", "text": "마이크 청취 중"}, 5)]
     assert ("STT", "마이크 청취 중") in called
+
+
+def test_transcriber_skips_silence():
+    events, poster = collect_events()
+    model = DummyModel()
+    cfg = AssistConfig()
+    transcriber = AssistTranscriber(model, poster, cfg)
+    pcm = (np.zeros(cfg.sample_rate, dtype=np.int16)).tobytes()
+    text = transcriber.transcribe(pcm)
+    assert text == ""
+    assert events == []
+
+
+class YouModel:
+    def __init__(self):
+        self.model_size = "dummy"
+
+    def transcribe(self, audio, language="en"):
+        class Seg:
+            text = "You"
+        return [Seg()], None
+
+
+def test_transcriber_filters_you():
+    events, poster = collect_events()
+    model = YouModel()
+    cfg = AssistConfig()
+    transcriber = AssistTranscriber(model, poster, cfg)
+    pcm = (np.full(cfg.sample_rate, 5000, dtype=np.int16)).tobytes()
+    text = transcriber.transcribe(pcm)
+    assert text == ""
+    assert events == []

@@ -159,7 +159,10 @@ class AssistTranscriber:
 
     def transcribe(self, pcm16: bytes) -> str:
         """Transcribe a chunk of PCM16 mono audio."""
-        audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
+        raw = np.frombuffer(pcm16, dtype=np.int16)
+        if np.abs(raw).mean() < 100:
+            return ""
+        audio = raw.astype(np.float32) / 32768.0
         language = None if self.cfg.language == "auto" else self.cfg.language
         kwargs = {
             "beam_size": self.cfg.beam_size,
@@ -176,6 +179,8 @@ class AssistTranscriber:
         except TypeError:
             segments, _ = self.model.transcribe(audio, language=language)
         text = "".join(seg.text for seg in segments).strip()
+        if text.lower() == "you":
+            text = ""
         if text:
             payload = {
                 "text": text,
@@ -207,8 +212,10 @@ class SubtitleUI:
             self.root = tk.Tk()
             self.root.title("Assist STT")
             self.root.geometry("600x240+60+60")
+            self.root.configure(bg="#000000")
+            self.root.attributes("-topmost", True)
             self.chat_box = scrolledtext.ScrolledText(
-                self.root, bg="#101316", fg="#E6E6E6", font=("Arial", 14), wrap="word"
+                self.root, bg="#101316", fg="#E6E6E6", font=("Arial", 18), wrap="word"
             )
             self.chat_box.pack(fill="both", expand=True, padx=16, pady=16)
             self.chat_box.configure(state="disabled")
@@ -284,7 +291,19 @@ def run(cfg: AssistConfig) -> None:
     """Capture microphone and stream to Whisper, showing subtitles."""
     if WhisperModel is None:
         raise RuntimeError("faster-whisper is not installed")
+    if sd is None:
+        raise RuntimeError("sounddevice is not installed")
 
+    model_dir = pathlib.Path.home() / ".cache" / "faster-whisper" / cfg.model
+    if not model_dir.exists():
+        _post_event(
+            "overlay.toast",
+            {
+                "title": "STT",
+                "text": "첫 실행 땐 Whisper 모델을 다운로드 합니다. 시간이 걸릴 수 있습니다",
+            },
+            8,
+        )
     model = WhisperModel(cfg.model, device="cpu", compute_type=cfg.compute_type)
     ui = SubtitleUI()
     transcriber = AssistTranscriber(model, _post_event, cfg, ui)
@@ -292,6 +311,8 @@ def run(cfg: AssistConfig) -> None:
     q: "queue.Queue[bytes]" = queue.Queue()
 
     device = _select_input_device(cfg.device_index, cfg.device_name)
+    if device is None:
+        raise RuntimeError("No microphone input device found")
     try:
         dev_info = sd.query_devices(device)  # pragma: no cover - environment dependent
         channels = int(dev_info.get("max_input_channels", 1)) or 1

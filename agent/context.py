@@ -16,6 +16,8 @@ class Ctx:
         self.sinks = sinks_mod
         # Accessibility/assistive mode flag (persisted until toggled off)
         self.assist_mode: bool = bool(config.get("accessibility", 0))
+        # Focus mode active flag
+        self.focus_mode: bool = False
 
 def load_config(path: str = "config.yaml") -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:

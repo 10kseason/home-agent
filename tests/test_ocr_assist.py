@@ -24,35 +24,34 @@ capture:
   monitor: 2
   region: [10, 20, 30, 40]
 ocr:
-  lang: en
-  use_angle_cls: false
-  device: gpu
+  langs: [en]
+  gpu: true
 """,
         encoding="utf-8",
     )
     cfg = load_config(str(cfg_file))
     assert cfg.monitor == 2
     assert cfg.region == [10, 20, 30, 40]
-    assert cfg.lang == "en"
-    assert cfg.use_angle_cls is False
-    assert cfg.device == "gpu"
+    assert cfg.langs == ["en"]
+    assert cfg.gpu is True
     assert cfg.announce_text == "done"
 
 
 def test_run_ocr_uses_config(monkeypatch):
     calls = {}
 
-    class DummyOCR:
-        def __init__(self, **kwargs):
-            calls.update(kwargs)
+    class DummyReader:
+        def __init__(self, langs, gpu=False):
+            calls["langs"] = langs
+            calls["gpu"] = gpu
 
-        def ocr(self, img, cls=True):
-            return [[(None, ("ok", 0.9))]]
+        def readtext(self, img, detail=0):
+            return ["ok"]
 
-    monkeypatch.setattr(ocr_assist, "PaddleOCR", DummyOCR)
+    monkeypatch.setattr(ocr_assist, "easyocr", type("M", (), {"Reader": DummyReader}))
     img = Image.fromarray(np.zeros((1, 1, 3), dtype=np.uint8))
-    cfg = OCRAssistConfig(lang="en", use_angle_cls=False, device="cpu")
+    cfg = OCRAssistConfig(langs=["en"], gpu=False)
     text = ocr_assist._run_ocr(img, cfg)
-    assert calls["lang"] == "en"
-    assert calls["use_angle_cls"] is False
+    assert calls["langs"] == ["en"]
+    assert calls["gpu"] is False
     assert text == "ok"

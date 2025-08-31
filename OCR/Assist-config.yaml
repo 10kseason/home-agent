@@ -10,8 +10,5 @@ event:
   key: null
 
 ocr:
-  lang: korean
-  use_angle_cls: true
-  device: cpu
-  det_model_dir: null
-  rec_model_dir: null
+  langs: [ko, en]
+  gpu: false
