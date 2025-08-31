@@ -6,7 +6,7 @@ capture:
   region: null      # optional [left, top, width, height]
 
 event:
-  url: http://127.0.0.1:8350/event
+  url: http://127.0.0.1:8765/event
   key: null
 
 ocr:

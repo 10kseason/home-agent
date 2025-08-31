@@ -10,6 +10,9 @@ assist:
   detection:
     require_boundary: false
     cooldown_ms: 800
+event:
+  url: http://127.0.0.1:8765/event
+  key: null
 stt:
   engine: faster-whisper
   model: base            # Whisper Base model

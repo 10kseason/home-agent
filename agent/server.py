@@ -192,6 +192,60 @@ def create_app(ctx, plugins=None):
             ctx.bus.subscribe("assist.", _assist_handler)
             app.state._plugin_unsubs.append(("assist.", _assist_handler))
 
+            async def _cmd_handler(ev):
+                # 1) typed 이벤트 지원 (cmd.capture 등)
+                if ev.type.startswith("cmd."):
+                    c = ev.type.split(".", 1)[1]
+                # 2) generic 이벤트(cmd.detected) 지원
+                else:
+                    c = (ev.payload or {}).get("cmd")
+
+                if not c:
+                    return
+
+                # 중복 억제용 타임스탬프
+                import time as _t
+                ts = ev.payload.get("ts") if isinstance(ev.payload, dict) else None
+                if not ts:
+                    ts = _t.time()
+
+                # 라우팅
+                if c == "capture":
+                    # assist 모드면 ocr_assist.start, 아니면 ocr.start
+                    etype = "ocr_assist.start" if app.state.assist_mode else "ocr.start"
+                    await ctx.bus.publish(Event(
+                        type=etype,
+                        payload={"reason": "voice_cmd", "cmd": c, "ts": ts},
+                        priority=2,
+                        source="router",
+                        timestamp=_t.time(),
+                    ))
+                elif c == "assist":
+                    await ctx.bus.publish(Event(
+                        type="assist.on",
+                        payload={"ts": ts},
+                        priority=5,
+                        source="router",
+                        timestamp=_t.time(),
+                    ))
+                elif c == "stop":
+                    # 보조모드 종료 + OCR/STM 정리
+                    await ctx.bus.publish(Event(
+                        type="assist.off",
+                        payload={"ts": ts},
+                        priority=5,
+                        source="router",
+                        timestamp=_t.time(),
+                    ))
+                    await ctx.bus.publish(Event(type="ocr.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
+                    await ctx.bus.publish(Event(type="stt.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
+                # 필요하면 여기서 summarize/translate 등도 매핑
+
+            ctx.bus.subscribe("cmd.", _cmd_handler)
+            ctx.bus.subscribe("cmd.detected", _cmd_handler)  # generic도 받기
+            app.state._plugin_unsubs.append(("cmd.", _cmd_handler))
+            app.state._plugin_unsubs.append(("cmd.detected", _cmd_handler))
+
             # Start event bus loop
             app.state.bus_task = asyncio.create_task(ctx.bus.run())
             yield

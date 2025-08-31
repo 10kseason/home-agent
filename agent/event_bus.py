@@ -44,6 +44,17 @@ class EventBus:
     def subscribe(self, event_prefix: str, handler: Callable[[Event], None]):
         self.subscribers.setdefault(event_prefix, []).append(handler)
 
+    def unsubscribe(self, event_prefix: str, handler: Callable[[Event], None]):
+        handlers = self.subscribers.get(event_prefix)
+        if not handlers:
+            return
+        try:
+            handlers.remove(handler)
+        except ValueError:
+            pass
+        if not handlers:
+            self.subscribers.pop(event_prefix, None)
+
     async def run(self):
         logger.info("EventBus loop started.")
         while True:
