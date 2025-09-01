@@ -64,3 +64,4 @@
 - Added assist_on tool and rerouted stt/ocr_start to assist events when assist mode is active; ocr_capture now always starts OCR assist and prompt examples teach models to avoid assist tools unless explicitly requested.
 
 - Tool definitions converted to snake_case and expanded to include assist_on/off and start/stop handlers for STT/OCR in both normal and assist modes; configs, prompts, and overlay mappings updated for full tool_call compatibility.
+- Added stt_assist and ocr_assist plugins so assist-mode transcripts bypass default cleanup and are processed separately; future integration with wake-word triggers and advanced OCR/STT features still needed.

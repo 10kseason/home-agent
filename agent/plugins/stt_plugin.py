@@ -6,6 +6,10 @@ class STTPlugin(BasePlugin):
     handles = ["stt.text"]
 
     async def handle(self, event):
+        # Skip assist-mode transcripts; handled by stt_assist plugin
+        if event.payload.get("assist"):
+            return
+
         text = event.payload.get("text", "")
         # 반복 제거 (예: "I'm going to do it" 반복 등)
         parts = [p.strip() for p in text.split()]
