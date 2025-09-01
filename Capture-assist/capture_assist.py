@@ -20,14 +20,18 @@ import yaml
 import numpy as np
 from PIL import Image
 from mss import mss
-import requests
+import requests as _rq
 from tools.tts_espeak import speak
+
+# Backwards-compatibility alias for tests expecting module-level `requests`
+requests = _rq
 
 try:  # EasyOCR downloads models on first use
     import easyocr
 except Exception:  # pragma: no cover - runtime dependency
     easyocr = None
 
+# ---- Luna Agent bridge (공통) ----
 _EVENT_URL = (
     os.environ.get("EVENT_URL")
     or os.environ.get("AGENT_EVENT_URL")
@@ -42,7 +46,7 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         headers = {"Content-Type": "application/json"}
         if _EVENT_KEY:
             headers["X-Agent-Key"] = _EVENT_KEY
-        requests.post(
+        _rq.post(
             _EVENT_URL,
             json={"type": _type, "payload": _payload, "priority": _prio},
             headers=headers,
@@ -52,9 +56,19 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         pass
 
 
+def _overlay_toast(message: str, title: str = "Assist-Capture") -> None:
+    """Mirror messages to Lunar Bridge overlay as toasts."""
+    message = (message or "").strip()
+    if not message:
+        return
+    if len(message) > 240:
+        message = message[:239] + "…"
+    _post_event("overlay.toast", {"title": title, "text": message})
+
+
 def _notify(msg: str) -> None:
     """Display a toast notification locally and via overlay."""
-    _post_event("overlay.toast", {"title": "Assist-Capture", "text": msg})
+    _overlay_toast(msg)
     try:
         from agent.sinks import toast_notify
 
@@ -97,7 +111,7 @@ def _refine_with_jan(text: str) -> str:
         "reasoning": {"effort": "high"},
     }
     try:
-        r = requests.post(
+        r = _rq.post(
             f"{endpoint}/chat/completions", headers=headers, json=payload, timeout=10
         )
         r.raise_for_status()
