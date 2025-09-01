@@ -1,0 +1,72 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "stt_assist_start",
+      "description": "Start STT Assist overlay",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ocr_capture",
+      "description": "Trigger OCR capture via assist overlay",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "region": { "type": "string", "description": "optional screen region id" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "assist_on",
+      "description": "Enable assist mode without starting tools",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "assist_off",
+      "description": "Stop all assist features",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "stt_start",
+      "description": "Start STT in normal mode",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "stt_stop",
+      "description": "Stop STT",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ocr_start",
+      "description": "Start OCR in normal mode",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ocr_stop",
+      "description": "Stop OCR",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  }
+]
