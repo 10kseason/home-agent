@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 from .schemas import Event, Result, PluginEventIn
+from . import tool_gateway
 
 def _spawn_overlay(cfg):
     ov = (cfg or {}).get("overlay", {}) or {}
@@ -387,6 +388,31 @@ def create_app(ctx, plugins=None):
         return {"ok": True, "message": f"queued {len(bodies)} events"}
 
     app.include_router(plugin)
+
+    # --- tool call ingress ---
+    @app.post("/tool/call")
+    async def tool_call(body: dict):
+        try:
+            if isinstance(body, list):
+                calls = body
+            elif "tool_calls" in body:
+                calls = body.get("tool_calls") or []
+            elif "name" in body:
+                calls = [body]
+            else:
+                raise ValueError("no tool calls provided")
+            await tool_gateway.handle_tool_calls(calls, ctx, ctx.bus)
+            return {"ok": True, "routed": len(calls)}
+        except Exception as ex:
+            raise HTTPException(status_code=400, detail=str(ex))
+
+    @app.post("/llm/response")
+    async def llm_response(body: dict):
+        try:
+            await tool_gateway.process_response(body, ctx, ctx.bus)
+            return {"ok": True}
+        except Exception as ex:
+            raise HTTPException(status_code=400, detail=str(ex))
 
     # --- overlay control (optional) ---
     @app.post("/overlay/start")
