@@ -57,3 +57,4 @@
 - AssistCommandPlugin now performs combined summarize+translate when needed, caching summaries so repeated 번역 commands reuse the summary. Further context-caching and repeat behavior refinements remain.
 - AssistCommandPlugin now minimizes LLM context with fixed prompts and SHA1-based caching for summarize/translate tasks, storing last translation. Further STT window tracking and broader context store remain.
 - Command router added to server so cmd.capture/assist/stop events trigger OCR/assist processes and cleanup, and EventBus now supports unsubscribe for clean shutdown. Assist and OCR configs force event.url to 8765 to avoid mismatched ports. Mapping for other commands like summarize/translate still pending.
+- Command router now parses cmd.detected payloads so capture voice commands launch the appropriate OCR process; added tests for cmd->ocr routing.
