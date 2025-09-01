@@ -640,6 +640,17 @@ class Orchestrator:
         tools_map.setdefault('ocr_assist.stop',  te['ocr']['event_url'])
         tools_map.setdefault('assist.on', te['stt']['event_url'])
         tools_map.setdefault('assist.off', te['stt']['event_url'])
+        # snake_case aliases
+        tools_map.setdefault('ocr_start', te['ocr']['event_url'])
+        tools_map.setdefault('ocr_stop',  te['ocr']['event_url'])
+        tools_map.setdefault('stt_start', te['stt']['event_url'])
+        tools_map.setdefault('stt_stop',  te['stt']['event_url'])
+        tools_map.setdefault('stt_assist_start', te['stt']['event_url'])
+        tools_map.setdefault('stt_assist_stop',  te['stt']['event_url'])
+        tools_map.setdefault('ocr_assist_start', te['ocr']['event_url'])
+        tools_map.setdefault('ocr_assist_stop',  te['ocr']['event_url'])
+        tools_map.setdefault('assist_on', te['stt']['event_url'])
+        tools_map.setdefault('assist_off', te['stt']['event_url'])
         te.setdefault('web', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('web.search', te['web']['event_url'])
         te.setdefault('discord', {'event_url': 'http://127.0.0.1:8765/event'})
@@ -650,7 +661,7 @@ class Orchestrator:
         if cfg_assist and not server_assist:
             threading.Thread(
                 target=lambda: asyncio.run(
-                    self.run_tool_calls([{ "name": "assist.on", "args": {} }])
+                    self.run_tool_calls([{ "name": "assist_on", "args": {} }])
                 ),
                 daemon=True,
             ).start()
@@ -659,7 +670,7 @@ class Orchestrator:
             allowed = {
                 k: v
                 for k, v in tools_map.items()
-                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.')
+                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.') or k.startswith('assist_')
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
@@ -667,7 +678,7 @@ class Orchestrator:
             allowed = {
                 k: v
                 for k, v in tools_map.items()
-                if not (k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.'))
+                if not (k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.') or k.startswith('assist_'))
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
@@ -726,7 +737,7 @@ class Orchestrator:
             allowed = {
                 k: v
                 for k, v in self._all_tools_map.items()
-                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.')
+                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.') or k.startswith('assist_')
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
@@ -2020,13 +2031,13 @@ class OverlayWindow(QtWidgets.QWidget):
             if state in ("on", "1", "true"):
                 self.orch.set_assist_mode(True)
                 save_accessibility(True)
-                self._run_tool_calls_async([{ "name": "assist.on", "args": {} }])
+                self._run_tool_calls_async([{ "name": "assist_on", "args": {} }])
                 self._append("overlay", "Accessibility mode enabled")
                 logger.info("[assist] enabled")
             elif state in ("off", "0", "false"):
                 self.orch.set_assist_mode(False)
                 save_accessibility(False)
-                self._run_tool_calls_async([{ "name": "assist.off", "args": {} }])
+                self._run_tool_calls_async([{ "name": "assist_off", "args": {} }])
                 self._append("overlay", "Accessibility mode disabled")
                 logger.info("[assist] disabled")
             else:

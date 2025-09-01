@@ -10,6 +10,14 @@
   {
     "type": "function",
     "function": {
+      "name": "stt_assist_stop",
+      "description": "Stop STT Assist overlay",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "ocr_capture",
       "description": "Trigger OCR capture via assist overlay",
       "parameters": {
@@ -66,6 +74,22 @@
     "function": {
       "name": "ocr_stop",
       "description": "Stop OCR",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ocr_assist_start",
+      "description": "Start OCR Assist capture",
+      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ocr_assist_stop",
+      "description": "Stop OCR Assist",
       "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
     }
   }

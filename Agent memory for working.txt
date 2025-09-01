@@ -62,3 +62,5 @@
 - Defined tool call contract via schemas/tool_calls.json and added Qwen system prompt requiring tool-only responses; tool gateway now loads schemas from file for validation.
 - Added stt_start/stt_stop and ocr_start/ocr_stop to the tool call schema and gateway so normal STT/OCR tools are invoked via structured tool_calls; further LLM integration remains.
 - Added assist_on tool and rerouted stt/ocr_start to assist events when assist mode is active; ocr_capture now always starts OCR assist and prompt examples teach models to avoid assist tools unless explicitly requested.
+
+- Tool definitions converted to snake_case and expanded to include assist_on/off and start/stop handlers for STT/OCR in both normal and assist modes; configs, prompts, and overlay mappings updated for full tool_call compatibility.

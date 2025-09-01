@@ -9,9 +9,9 @@ Assist mode rules:
 
 Available assist tools:
 1) Start microphone transcription
-   -> {"name":"stt_assist.start","args":{}}
-   Stop when done -> {"name":"stt_assist.stop","args":{}}
+   -> {"name":"stt_assist_start","args":{}}
+   Stop when done -> {"name":"stt_assist_stop","args":{}}
 
 2) Screen OCR capture
-   -> {"name":"ocr_assist.start","args":{}}
-   Stop when done -> {"name":"ocr_assist.stop","args":{}}
+   -> {"name":"ocr_assist_start","args":{}}
+   Stop when done -> {"name":"ocr_assist_stop","args":{}}
