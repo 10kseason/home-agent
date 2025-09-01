@@ -67,3 +67,5 @@
 - Added mictrans and capture_assist plugins so assist-mode transcripts bypass default cleanup and are processed separately; future integration with wake-word triggers and advanced OCR/STT features still needed.
 - Renamed assist tools: STT assist -> MicTrans and OCR assist -> Capture Assist; updated configs, tool calls, and tests.
 - MicTrans and Capture Assist now include Luna Agent bridge and send overlay events via the orchestrator; MicTrans also emits a mictrans.started event when listening. Update AGENTS.md to require Luna bridge and orchestrator integration for all new tools. Wake-word triggers and broader assist features remain.
+
+- Voice input and capture commands unified so MicTrans handles all voice input and Capture Assist performs screenshot OCR with a five-second delay in both modes; server, command router, tool gateway, and docs updated accordingly.

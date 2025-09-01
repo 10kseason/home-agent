@@ -25,7 +25,6 @@ SCHEMAS: Dict[str, Dict[str, Any]] = {
 # Tool name to event mapping
 TOOL_ROUTES = {
       "mictrans_start": lambda args, ctx: [
-          ("assist.on", {"reason": "tool", "args": args}),
           ("mictrans.start", {"reason": "tool"}),
       ],
       "mictrans_stop": lambda args, ctx: [
@@ -43,23 +42,13 @@ TOOL_ROUTES = {
     "assist_on": lambda args, ctx: [("assist.on", {"reason": "tool"})],
     "assist_off": lambda args, ctx: [
         ("assist.off", {"reason": "tool"}),
-        ("stt.stop", {"reason": "tool"}),
-        ("ocr.stop", {"reason": "tool"}),
+        ("mictrans.stop", {"reason": "tool"}),
+        ("capture_assist.stop", {"reason": "tool"}),
     ],
-    "stt_start": lambda args, ctx: [
-          (
-              "mictrans.start" if getattr(ctx, "assist_mode", False) else "stt.start",
-              {"reason": "tool"},
-          )
-    ],
-    "stt_stop": lambda args, ctx: [("stt.stop", {"reason": "tool"})],
-    "ocr_start": lambda args, ctx: [
-          (
-              "capture_assist.start" if getattr(ctx, "assist_mode", False) else "ocr.start",
-              {"reason": "tool"},
-          )
-    ],
-    "ocr_stop": lambda args, ctx: [("ocr.stop", {"reason": "tool"})],
+    "stt_start": lambda args, ctx: [("mictrans.start", {"reason": "tool"})],
+    "stt_stop": lambda args, ctx: [("mictrans.stop", {"reason": "tool"})],
+    "ocr_start": lambda args, ctx: [("capture_assist.start", {"reason": "tool"})],
+    "ocr_stop": lambda args, ctx: [("capture_assist.stop", {"reason": "tool"})],
 }
 
 

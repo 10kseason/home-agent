@@ -17,14 +17,14 @@ async def dispatch_all(bus: EventBus):
                     await h(e)
 
 
-async def _run(ctx, subscribe_prefix):
+async def _run(ctx):
     app = create_app(ctx, plugins=[])
     events = []
     try:
         async with app.router.lifespan_context(app):
             async def collect(ev):
                 events.append(ev.type)
-            ctx.bus.subscribe(subscribe_prefix, collect)
+            ctx.bus.subscribe("capture_assist.", collect)
             handler = ctx.bus.subscribers["cmd.detected"][0]
             await handler(Event(type="cmd.detected", payload={"cmd": "capture"}))
             await dispatch_all(ctx.bus)
@@ -33,13 +33,13 @@ async def _run(ctx, subscribe_prefix):
     return events
 
 
-def test_cmd_detected_to_ocr():
+def test_cmd_detected_routes_to_capture_assist_normal():
     ctx = SimpleNamespace(config={}, bus=EventBus(dedup_window=0), assist_mode=False)
-    events = asyncio.run(_run(ctx, "ocr."))
-    assert events == ["ocr.start"]
+    events = asyncio.run(_run(ctx))
+    assert events == ["capture_assist.start"]
 
-def test_cmd_detected_to_capture_assist():
+def test_cmd_detected_routes_to_capture_assist_assist_mode():
     ctx = SimpleNamespace(config={}, bus=EventBus(dedup_window=0), assist_mode=True)
-    events = asyncio.run(_run(ctx, "capture_assist."))
+    events = asyncio.run(_run(ctx))
     assert events == ["capture_assist.start"]
 
