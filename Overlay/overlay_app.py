@@ -102,9 +102,9 @@ class EventHandler:
             
             # 이벤트 타입별 처리
             success = False
-            if event_type.startswith("stt."):
+            if event_type.startswith("stt.") or event_type.startswith("mictrans."):
                 success = self._handle_stt(payload)
-            elif event_type.startswith("ocr."):
+            elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
                 success = self._handle_ocr(payload)
             elif event_type.startswith("web.search"):
                 success = self._handle_web_search(payload)

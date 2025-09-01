@@ -2,6 +2,7 @@ from . import BasePlugin
 from loguru import logger
 from typing import Optional
 import httpx, re, asyncio
+from ..schemas import Event
 
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
@@ -10,7 +11,15 @@ def strip_think(text: str) -> str:
 
 class TranslatorPlugin(BasePlugin):
     name = "translator"
-    handles = ["ocr.text", "stt.text", "discord.batch", "discord.text", "notif.batch"]
+    handles = [
+        "ocr.text",
+        "stt.text",
+        "discord.batch",
+        "discord.text",
+        "notif.batch",
+        "capture_assist.text",
+        "mictrans.text",
+    ]
 
     async def _translate_once(self, endpoint, model, api_key, text: str, target_lang: str) -> Optional[str]:
         headers = {"Content-Type": "application/json"}
@@ -121,5 +130,15 @@ class TranslatorPlugin(BasePlugin):
 
         msg = f"[{self.name}] {event.type} → 번역 완료: {translated[:180]}..."
         self.ctx.sinks.write_log(msg, self.ctx.config["sinks"].get("log_file"))
+        event.payload["translation"] = translated
+        await self.ctx.bus.publish(
+            Event(type="translator.text", payload={"text": translated, "source": event.type})
+        )
+        await self.ctx.bus.publish(
+            Event(
+                type="overlay.toast",
+                payload={"title": "번역 완료", "text": translated[:64]},
+            )
+        )
         if self.ctx.config["sinks"].get("toast", True):
             self.ctx.sinks.toast_notify("번역 완료", translated[:64])

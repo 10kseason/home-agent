@@ -4,7 +4,7 @@ from loguru import logger
 class MicTransPlugin(BasePlugin):
     """Cleanup for MicTrans transcripts."""
     name = "mictrans"
-    handles = ["stt.text"]
+    handles = ["mictrans.text"]
 
     async def handle(self, event):
         if not event.payload.get("assist"):
@@ -16,4 +16,5 @@ class MicTransPlugin(BasePlugin):
             if not dedup or dedup[-1] != p:
                 dedup.append(p)
         event.payload["text"] = " ".join(dedup)
-        logger.debug(f"[{self.name}] cleaned stt.text")
+        await self.ctx.bus.publish(event)
+        logger.debug(f"[{self.name}] cleaned and republished mictrans.text")

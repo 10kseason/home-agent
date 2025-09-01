@@ -105,7 +105,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Assist microphone transcription"
+    desc: "Assist microphone transcription (emits mictrans.text)"
     input_schema:
       type: object
       properties: {}
@@ -123,7 +123,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Assist OCR capture"
+    desc: "Assist OCR capture (emits capture_assist.text)"
     input_schema:
       type: object
       properties: {}

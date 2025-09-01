@@ -24,10 +24,10 @@ contributors.
   generation, ROI‑OCR, ranking, rule-based NLU, two‑stage runner, barge‑in and
   preserve‑lock logic.
 - **MicTrans** – `Mic-trans-assist/mictrans.py` streams microphone audio for voice input,
-  auto-selecting the default input device and posting `stt.text` events with
+  auto-selecting the default input device and posting `mictrans.text` events with
   an `assist` flag so the overlay labels them **Assist-MicTrans**.
 - **Capture Assist** – `Capture-assist/capture_assist.py` waits five seconds, captures a screenshot, runs OCR, and
-  emits `ocr.text` events marked `assist`, appearing as **Assist-Capture** on the
+  emits `capture_assist.text` events marked `assist`, appearing as **Assist-Capture** on the
   overlay.
 - **Assist Commands** – `agent/plugins/assist_cmd_plugin.py` listens for
   keywords like capture, summarize, translate, repeat, or focus mode in STT
