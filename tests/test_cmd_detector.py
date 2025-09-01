@@ -1,5 +1,15 @@
+import sys, importlib.util
+from pathlib import Path
+
 from STT import cmd_detector
-from STT.assist import AssistConfig
+
+spec = importlib.util.spec_from_file_location(
+    "mictrans", Path(__file__).resolve().parents[1] / "Mic-trans-assist" / "mictrans.py"
+)
+mictrans = importlib.util.module_from_spec(spec)
+sys.modules["mictrans"] = mictrans
+spec.loader.exec_module(mictrans)
+AssistConfig = mictrans.AssistConfig
 
 
 def test_detect_command_basic():

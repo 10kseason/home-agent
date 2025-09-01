@@ -2,16 +2,16 @@
   {
     "type": "function",
     "function": {
-      "name": "stt_assist_start",
-      "description": "Start STT Assist overlay",
+      "name": "mictrans_start",
+      "description": "Start mic-transcription assist overlay",
       "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
     }
   },
   {
     "type": "function",
     "function": {
-      "name": "stt_assist_stop",
-      "description": "Stop STT Assist overlay",
+      "name": "mictrans_stop",
+      "description": "Stop mic-transcription assist overlay",
       "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
     }
   },
@@ -80,16 +80,16 @@
   {
     "type": "function",
     "function": {
-      "name": "ocr_assist_start",
-      "description": "Start OCR Assist capture",
+      "name": "capture_assist_start",
+      "description": "Start capture assist OCR",
       "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
     }
   },
   {
     "type": "function",
     "function": {
-      "name": "ocr_assist_stop",
-      "description": "Stop OCR Assist",
+      "name": "capture_assist_stop",
+      "description": "Stop capture assist",
       "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
     }
   }

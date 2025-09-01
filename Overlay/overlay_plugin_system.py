@@ -553,7 +553,7 @@ class PluginAwareOrchestrator:
             allowed = [
                 name
                 for name in self.plugin_manager.handlers.keys()
-                if name.startswith("stt_assist") or name.startswith("ocr_assist") or name.startswith("assist.")
+                if name.startswith("mictrans") or name.startswith("capture_assist") or name.startswith("assist.")
             ]
             self.plugin_manager.handlers = {
                 k: v for k, v in self.plugin_manager.handlers.items() if k in allowed
@@ -564,7 +564,7 @@ class PluginAwareOrchestrator:
                 if s.get("function", {}).get("name") in allowed
             ]
         else:
-            disallowed = ("stt_assist", "ocr_assist", "assist.")
+            disallowed = ("mictrans", "capture_assist", "assist.")
             allowed = [
                 name
                 for name in self.plugin_manager.handlers.keys()

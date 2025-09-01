@@ -5,13 +5,13 @@ import numpy as np
 import sys
 
 spec = importlib.util.spec_from_file_location(
-    "ocr_assist", Path(__file__).resolve().parents[1] / "OCR" / "OCR-Assist.py"
+    "capture_assist", Path(__file__).resolve().parents[1] / "Capture-assist" / "capture_assist.py"
 )
-ocr_assist = importlib.util.module_from_spec(spec)
-sys.modules["ocr_assist"] = ocr_assist
-spec.loader.exec_module(ocr_assist)
-OCRAssistConfig = ocr_assist.OCRAssistConfig
-load_config = ocr_assist.load_config
+capture_assist = importlib.util.module_from_spec(spec)
+sys.modules["capture_assist"] = capture_assist
+spec.loader.exec_module(capture_assist)
+OCRAssistConfig = capture_assist.OCRAssistConfig
+load_config = capture_assist.load_config
 
 
 def test_load_config_values(tmp_path):
@@ -48,10 +48,10 @@ def test_run_ocr_uses_config(monkeypatch):
         def readtext(self, img, detail=0):
             return ["ok"]
 
-    monkeypatch.setattr(ocr_assist, "easyocr", type("M", (), {"Reader": DummyReader}))
+    monkeypatch.setattr(capture_assist, "easyocr", type("M", (), {"Reader": DummyReader}))
     img = Image.fromarray(np.zeros((1, 1, 3), dtype=np.uint8))
     cfg = OCRAssistConfig(langs=["en"], gpu=False)
-    text = ocr_assist._run_ocr(img, cfg)
+    text = capture_assist._run_ocr(img, cfg)
     assert calls["langs"] == ["en"]
     assert calls["gpu"] is False
     assert text == "ok"
@@ -72,21 +72,21 @@ def test_refine_with_jan_supports_lmstudio(monkeypatch):
         return DummyResp()
 
     monkeypatch.setenv("LM_STUDIO_ENDPOINT", "http://lmstudio:1234/v1")
-    monkeypatch.setattr(ocr_assist.requests, "post", fake_post)
-    out = ocr_assist._refine_with_jan("hi")
+    monkeypatch.setattr(capture_assist.requests, "post", fake_post)
+    out = capture_assist._refine_with_jan("hi")
     assert called["url"] == "http://lmstudio:1234/v1/chat/completions"
     assert out == "refined"
 
 
 def test_main_announces_delay_and_progress(monkeypatch):
     messages = []
-    monkeypatch.setattr(ocr_assist, "_notify", lambda msg: messages.append(msg))
-    monkeypatch.setattr(ocr_assist, "_capture_screen", lambda cfg: Image.new("RGB", (1, 1)))
-    monkeypatch.setattr(ocr_assist, "_run_ocr", lambda img, cfg: "")
+    monkeypatch.setattr(capture_assist, "_notify", lambda msg: messages.append(msg))
+    monkeypatch.setattr(capture_assist, "_capture_screen", lambda cfg: Image.new("RGB", (1, 1)))
+    monkeypatch.setattr(capture_assist, "_run_ocr", lambda img, cfg: "")
     sleeps = []
-    monkeypatch.setattr(ocr_assist.time, "sleep", lambda s: sleeps.append(s))
-    monkeypatch.setattr(sys, "argv", ["OCR-Assist.py"])
-    ocr_assist.main()
+    monkeypatch.setattr(capture_assist.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(sys, "argv", ["capture_assist.py"])
+    capture_assist.main()
     assert messages[0].startswith("5초")
     assert messages[1] == "이미지를 OCR 중입니다.."
     assert sleeps == [5]

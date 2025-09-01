@@ -6,7 +6,7 @@ class OCRPlugin(BasePlugin):
     handles = ["ocr.text"]
 
     async def handle(self, event):
-        # Skip assist-mode OCR; handled by ocr_assist plugin
+        # Skip assist-mode OCR; handled by capture_assist plugin
         if event.payload.get("assist"):
             return
 

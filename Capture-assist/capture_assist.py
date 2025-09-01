@@ -54,11 +54,11 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
 
 def _notify(msg: str) -> None:
     """Display a toast notification locally and via overlay."""
-    _post_event("overlay.toast", {"title": "Assist-OCR", "text": msg})
+    _post_event("overlay.toast", {"title": "Assist-Capture", "text": msg})
     try:
         from agent.sinks import toast_notify
 
-        toast_notify("Assist-OCR", msg)
+        toast_notify("Assist-Capture", msg)
     except Exception:
         pass
 

@@ -114,14 +114,14 @@ def create_app(ctx, plugins=None):
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
 
             async def _stt_handler(ev):
-                if ev.type in ("stt.start", "stt_assist.start"):
+                if ev.type in ("stt.start", "mictrans.start"):
                     if app.state.stt_proc and app.state.stt_proc.poll() is None:
                         logger.info("[stt] already running")
                     else:
-                        key = "stt_assist.start" if ev.type == "stt_assist.start" or app.state.assist_mode else "stt.start"
+                        key = "mictrans.start" if ev.type == "mictrans.start" or app.state.assist_mode else "stt.start"
                         app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), key)
-                elif ev.type in ("stt.stop", "stt_assist.stop"):
-                    if app.state.assist_mode and ev.type != "stt_assist.stop":
+                elif ev.type in ("stt.stop", "mictrans.stop"):
+                    if app.state.assist_mode and ev.type != "mictrans.stop":
                         logger.info("[stt] stop ignored in assist mode")
                     else:
                         await _terminate_proc(
@@ -132,25 +132,25 @@ def create_app(ctx, plugins=None):
                         app.state.stt_proc = None
 
             ctx.bus.subscribe("stt.", _stt_handler)
-            ctx.bus.subscribe("stt_assist.", _stt_handler)
+            ctx.bus.subscribe("mictrans.", _stt_handler)
             app.state._plugin_unsubs.append(("stt.", _stt_handler))
-            app.state._plugin_unsubs.append(("stt_assist.", _stt_handler))
+            app.state._plugin_unsubs.append(("mictrans.", _stt_handler))
 
             async def _ocr_handler(ev):
-                if ev.type in ("ocr.start", "ocr_assist.start"):
+                if ev.type in ("ocr.start", "capture_assist.start"):
                     if app.state.ocr_proc and app.state.ocr_proc.poll() is None:
                         logger.info("[ocr] already running")
                     else:
-                        key = "ocr_assist.start" if ev.type == "ocr_assist.start" or app.state.assist_mode else "ocr.start"
+                        key = "capture_assist.start" if ev.type == "capture_assist.start" or app.state.assist_mode else "ocr.start"
                         app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), key)
-                elif ev.type in ("ocr.stop", "ocr_assist.stop"):
+                elif ev.type in ("ocr.stop", "capture_assist.stop"):
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
                     app.state.ocr_proc = None
 
             ctx.bus.subscribe("ocr.", _ocr_handler)
-            ctx.bus.subscribe("ocr_assist.", _ocr_handler)
+            ctx.bus.subscribe("capture_assist.", _ocr_handler)
             app.state._plugin_unsubs.append(("ocr.", _ocr_handler))
-            app.state._plugin_unsubs.append(("ocr_assist.", _ocr_handler))
+            app.state._plugin_unsubs.append(("capture_assist.", _ocr_handler))
 
             async def _assist_handler(ev):
                 if ev.type == "assist.on":
@@ -158,18 +158,18 @@ def create_app(ctx, plugins=None):
                     ctx.assist_mode = True
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
-                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt_assist.start")
-                    app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "ocr_assist.start")
+                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
+                    app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "capture_assist.start")
 
                     if app.state.assist_task is None:
                         async def _ticker():
                             while app.state.assist_mode:
                                 proc = getattr(app.state, "stt_proc", None)
                                 if proc is None or proc.poll() is not None:
-                                    logger.info("[assist] restarting stt_assist")
+                                    logger.info("[assist] restarting mictrans")
                                     app.state.stt_proc = _spawn_tool(
                                         getattr(ctx, "config", {}),
-                                        "stt_assist.start",
+                                        "mictrans.start",
                                     )
                                 await asyncio.sleep(5)
                         app.state.assist_task = asyncio.create_task(_ticker())
@@ -213,8 +213,8 @@ def create_app(ctx, plugins=None):
 
                 # 라우팅
                 if c == "capture":
-                    # assist 모드면 ocr_assist.start, 아니면 ocr.start
-                    etype = "ocr_assist.start" if app.state.assist_mode else "ocr.start"
+                    # assist 모드면 capture_assist.start, 아니면 ocr.start
+                    etype = "capture_assist.start" if app.state.assist_mode else "ocr.start"
                     await ctx.bus.publish(Event(
                         type=etype,
                         payload={"reason": "voice_cmd", "cmd": c, "ts": ts},

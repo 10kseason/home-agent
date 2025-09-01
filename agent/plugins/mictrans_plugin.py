@@ -1,9 +1,9 @@
 from . import BasePlugin
 from loguru import logger
 
-class STTAssistPlugin(BasePlugin):
-    """Cleanup for STT Assist transcripts."""
-    name = "stt_assist"
+class MicTransPlugin(BasePlugin):
+    """Cleanup for MicTrans transcripts."""
+    name = "mictrans"
     handles = ["stt.text"]
 
     async def handle(self, event):

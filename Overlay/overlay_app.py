@@ -166,7 +166,7 @@ class EventHandler:
         if model:
             display_text += f" ({model})"
 
-        label = "Assist-STT" if payload.get("assist") else "🎤 STT"
+        label = "Assist-MicTrans" if payload.get("assist") else "🎤 STT"
         self._emit_safe(label, display_text)
         return True
     
@@ -189,7 +189,7 @@ class EventHandler:
         if confidence > 0:
             display_text += f" ({confidence:.0%})"
             
-        label = "Assist-OCR" if payload.get("assist") else "👁️ OCR"
+        label = "Assist-Capture" if payload.get("assist") else "👁️ OCR"
         self._emit_safe(label, display_text)
         return True
     
@@ -634,10 +634,10 @@ class Orchestrator:
         tools_map.setdefault('ocr.stop',  te['ocr']['event_url'])
         tools_map.setdefault('stt.start', te['stt']['event_url'])
         tools_map.setdefault('stt.stop',  te['stt']['event_url'])
-        tools_map.setdefault('stt_assist.start', te['stt']['event_url'])
-        tools_map.setdefault('stt_assist.stop',  te['stt']['event_url'])
-        tools_map.setdefault('ocr_assist.start', te['ocr']['event_url'])
-        tools_map.setdefault('ocr_assist.stop',  te['ocr']['event_url'])
+        tools_map.setdefault('mictrans.start', te['stt']['event_url'])
+        tools_map.setdefault('mictrans.stop',  te['stt']['event_url'])
+        tools_map.setdefault('capture_assist.start', te['ocr']['event_url'])
+        tools_map.setdefault('capture_assist.stop',  te['ocr']['event_url'])
         tools_map.setdefault('assist.on', te['stt']['event_url'])
         tools_map.setdefault('assist.off', te['stt']['event_url'])
         # snake_case aliases
@@ -645,10 +645,10 @@ class Orchestrator:
         tools_map.setdefault('ocr_stop',  te['ocr']['event_url'])
         tools_map.setdefault('stt_start', te['stt']['event_url'])
         tools_map.setdefault('stt_stop',  te['stt']['event_url'])
-        tools_map.setdefault('stt_assist_start', te['stt']['event_url'])
-        tools_map.setdefault('stt_assist_stop',  te['stt']['event_url'])
-        tools_map.setdefault('ocr_assist_start', te['ocr']['event_url'])
-        tools_map.setdefault('ocr_assist_stop',  te['ocr']['event_url'])
+        tools_map.setdefault('mictrans_start', te['stt']['event_url'])
+        tools_map.setdefault('mictrans_stop',  te['stt']['event_url'])
+        tools_map.setdefault('capture_assist_start', te['ocr']['event_url'])
+        tools_map.setdefault('capture_assist_stop',  te['ocr']['event_url'])
         tools_map.setdefault('assist_on', te['stt']['event_url'])
         tools_map.setdefault('assist_off', te['stt']['event_url'])
         te.setdefault('web', {'event_url': 'http://127.0.0.1:8765/event'})
@@ -670,7 +670,7 @@ class Orchestrator:
             allowed = {
                 k: v
                 for k, v in tools_map.items()
-                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.') or k.startswith('assist_')
+                if k.startswith('mictrans') or k.startswith('capture_assist') or k.startswith('assist.') or k.startswith('assist_')
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
@@ -678,7 +678,7 @@ class Orchestrator:
             allowed = {
                 k: v
                 for k, v in tools_map.items()
-                if not (k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.') or k.startswith('assist_'))
+                if not (k.startswith('mictrans') or k.startswith('capture_assist') or k.startswith('assist.') or k.startswith('assist_'))
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
@@ -737,7 +737,7 @@ class Orchestrator:
             allowed = {
                 k: v
                 for k, v in self._all_tools_map.items()
-                if k.startswith('stt_assist') or k.startswith('ocr_assist') or k.startswith('assist.') or k.startswith('assist_')
+                if k.startswith('mictrans') or k.startswith('capture_assist') or k.startswith('assist.') or k.startswith('assist_')
             }
             self.cfg['tools'] = allowed
             self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}

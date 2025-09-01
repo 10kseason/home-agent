@@ -22,7 +22,7 @@
 - Assist mode now launches assist-specific STT and PaddleOCR modules via agent events, with periodic status logging and an /assist/status endpoint. Voice-command triggers and debug capture remain to be implemented.
 - STT Assist now reads a dedicated Assist-config via a batch script and runs faster-whisper small int8 on CPU. OCR Assist plays a "찍었습니다." TTS cue using eSpeak NG on CPU after capturing text.
 - Added eSpeak NG TTS configuration with pronunciation rules; OCR Assist now uses shared eSpeak module.
-- Overlay detects assist mode via the agent's /assist/status endpoint, loading Tool_memory_Assist.txt and limiting tools to stt_assist/ocr_assist while showing an "Assist mode" title. Config now defaults tool-calling and translation to local Qwen3 4B models. Voice command triggers and deeper assist features remain outstanding.
+- Overlay detects assist mode via the agent's /assist/status endpoint, loading Tool_memory_Assist.txt and limiting tools to mictrans/capture_assist while showing an "Assist mode" title. Config now defaults tool-calling and translation to local Qwen3 4B models. Voice command triggers and deeper assist features remain outstanding.
 - Assist mode now keeps STT assist alive until assist.off, ignoring stt.stop events and auto-restarting if the process exits. OCR watchdogs and wake-word triggers still need implementation.
 - STT assist now detects configured voice commands and emits cmd.detected events; OCR/LLM orchestration and other assist features remain.
 - Overlay config and tool list now include STT/OCR Assist entries, auto-switching the tool-calling model between qwen/qwen3-4b-thinking-2507 and qwen/qwen3-4b-2507 based on assist mode, and showing "Luna Overlay v9 - Mode : Assist" when enabled.
@@ -40,16 +40,16 @@
 - Jan Nano refinement now uses LM Studio or Ollama endpoints to run jan-nano.
 - STT assist is launched directly via python, shows transcriptions in the overlay, and only forwards STT text to the LLM when the wake keyword "루나" is spoken. Both assist and normal modes now use qwen/qwen3-4b-2507 and filter tools accordingly.
 - Resolved OCR Assist import path so 'tools.tts_espeak' loads regardless of launch directory, gave unique tool IDs for STT/OCR assist to avoid conflicts, and set STT Assist block size to 1s for more real-time listening.
-- STT assist transcripts now flag `assist` and display as "Assist-STT" on the overlay while OCR assist outputs show "Assist-OCR". Voice commands trigger screen capture, LLM-based summarize/translate, focus mode toggling, and repeat of the last action.
+- STT assist transcripts now flag `assist` and display as "Assist-MicTrans" on the overlay while OCR assist outputs show "Assist-Capture". Voice commands trigger screen capture, LLM-based summarize/translate, focus mode toggling, and repeat of the last action.
 - Root config now exposes STT/OCR assist processes under a shared `tools` block so the agent can launch them without "disabled" warnings. Created `docs/ASSIST_COMMANDS.md` to document assist labels and voice-command triggers; wake-word handling and deeper pipeline integration remain.
 - STT assist and its config now default to the Whisper Tiny Korean model, focusing transcription on Korean; wake-word handling and broader command orchestration still remain.
 - AssistCommandPlugin now triggers overlay toast notifications and publishes OCR/LLM events when voice commands are detected, wiring CMD detection to agent actions.
-- Added tool handlers and server support so LLM calls to `stt_assist.start` and `ocr_assist.start` launch the respective assist
+- Added tool handlers and server support so LLM calls to `mictrans.start` and `capture_assist.start` launch the respective assist
   processes. `cmd_detector.process_text` now posts `cmd.detected` events, enabling voice commands to flow through the agent and
   overlay for actions like capture, summarize and translate.
 - STT assist now defaults to the Whisper Base model with int8 compute and Korean-only recognition for improved accuracy; wake-word triggers and deeper integration remain.
 - AssistCommandPlugin now posts a '📋 Cmd Detected' overlay toast and dispatches capture/summarize/translate prompts to local LLMs. Wake-word triggers and further assist features remain.
-- Agent server now listens for 'stt_assist.*' and 'ocr_assist.*' events so LLM tool calls launch the assist STT/OCR scripts; capture commands dispatch 'ocr_assist.start'.
+- Agent server now listens for 'mictrans.*' and 'capture_assist.*' events so LLM tool calls launch the assist STT/OCR scripts; capture commands dispatch 'capture_assist.start'.
 - STT assist can now call a configured local LLM when its wake word prefix is spoken, emitting `llm.chat` results; deeper assist-script orchestration and wake-word polish remain.
 - STT assist also invokes the configured LLM when the CMD detector recognizes an `assist` command, so a wake word is no longer required; integration with broader assist scripts still pending.
 - Assist and OCR tools now use relative paths and a shared loader so they run from any working directory; docs note configuring local LLM endpoints for tool calls.
@@ -64,4 +64,5 @@
 - Added assist_on tool and rerouted stt/ocr_start to assist events when assist mode is active; ocr_capture now always starts OCR assist and prompt examples teach models to avoid assist tools unless explicitly requested.
 
 - Tool definitions converted to snake_case and expanded to include assist_on/off and start/stop handlers for STT/OCR in both normal and assist modes; configs, prompts, and overlay mappings updated for full tool_call compatibility.
-- Added stt_assist and ocr_assist plugins so assist-mode transcripts bypass default cleanup and are processed separately; future integration with wake-word triggers and advanced OCR/STT features still needed.
+- Added mictrans and capture_assist plugins so assist-mode transcripts bypass default cleanup and are processed separately; future integration with wake-word triggers and advanced OCR/STT features still needed.
+- Renamed assist tools: STT assist -> MicTrans and OCR assist -> Capture Assist; updated configs, tool calls, and tests.

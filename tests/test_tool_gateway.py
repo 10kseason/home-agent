@@ -18,7 +18,7 @@ def test_tool_gateway_routes_events():
     ctx = SimpleNamespace(assist_mode=False)
     tool_calls = [
         {"function": {"name": "assist_on", "arguments": "{}"}},
-        {"idempotency_key": "abc", "function": {"name": "stt_assist_start", "arguments": "{}"}},
+        {"idempotency_key": "abc", "function": {"name": "mictrans_start", "arguments": "{}"}},
         {"function": {"name": "ocr_capture", "arguments": "{\"region\": \"full\"}"}},
         {"function": {"name": "assist_off", "arguments": "{}"}},
     ]
@@ -26,9 +26,9 @@ def test_tool_gateway_routes_events():
     types = [e.type for e in bus.events]
     assert types == [
         "assist.on",
-        "assist.on",
-        "stt_assist.start",
-        "ocr_assist.start",
+          "assist.on",
+          "mictrans.start",
+          "capture_assist.start",
         "assist.off",
         "stt.stop",
         "ocr.stop",
@@ -59,11 +59,11 @@ def test_tool_gateway_basic_stt_ocr():
 def test_tool_schemas_loaded():
     names = {t["function"]["name"] for t in tool_gateway.TOOLS}
     assert {
-        "stt_assist_start",
-        "stt_assist_stop",
-        "ocr_capture",
-        "ocr_assist_start",
-        "ocr_assist_stop",
+          "mictrans_start",
+          "mictrans_stop",
+          "ocr_capture",
+          "capture_assist_start",
+          "capture_assist_stop",
         "assist_on",
         "assist_off",
         "stt_start",
@@ -75,11 +75,11 @@ def test_tool_schemas_loaded():
 
 
 def test_ocr_capture_always_assist():
-    bus = DummyBus()
-    ctx = SimpleNamespace(assist_mode=False)
-    tool_calls = [{"function": {"name": "ocr_capture", "arguments": "{}"}}]
-    asyncio.run(handle_tool_calls(tool_calls, ctx, bus))
-    assert [e.type for e in bus.events] == ["ocr_assist.start"]
+      bus = DummyBus()
+      ctx = SimpleNamespace(assist_mode=False)
+      tool_calls = [{"function": {"name": "ocr_capture", "arguments": "{}"}}]
+      asyncio.run(handle_tool_calls(tool_calls, ctx, bus))
+      assert [e.type for e in bus.events] == ["capture_assist.start"]
 
 
 def test_stt_ocr_start_assist_mode():
@@ -91,8 +91,8 @@ def test_stt_ocr_start_assist_mode():
     ]
     asyncio.run(handle_tool_calls(tool_calls, ctx, bus))
     assert [e.type for e in bus.events] == [
-        "stt_assist.start",
-        "ocr_assist.start",
+        "mictrans.start",
+        "capture_assist.start",
     ]
 
 

@@ -34,20 +34,20 @@ def ocr_stop(_: Dict[str, Any]) -> Dict[str, Any]:
     return _post("ocr.stop")
 
 
-def stt_assist_start(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("stt_assist.start")
+def mictrans_start(_: Dict[str, Any]) -> Dict[str, Any]:
+    return _post("mictrans.start")
 
 
-def stt_assist_stop(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("stt_assist.stop")
+def mictrans_stop(_: Dict[str, Any]) -> Dict[str, Any]:
+    return _post("mictrans.stop")
 
 
-def ocr_assist_start(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("ocr_assist.start")
+def capture_assist_start(_: Dict[str, Any]) -> Dict[str, Any]:
+    return _post("capture_assist.start")
 
 
-def ocr_assist_stop(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("ocr_assist.stop")
+def capture_assist_stop(_: Dict[str, Any]) -> Dict[str, Any]:
+    return _post("capture_assist.stop")
 
 
 def assist_on(_: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,10 +63,10 @@ TOOL_HANDLERS = {
     "stt_stop": stt_stop,
     "ocr_start": ocr_start,
     "ocr_stop": ocr_stop,
-    "stt_assist_start": stt_assist_start,
-    "stt_assist_stop": stt_assist_stop,
-    "ocr_assist_start": ocr_assist_start,
-    "ocr_assist_stop": ocr_assist_stop,
+    "mictrans_start": mictrans_start,
+    "mictrans_stop": mictrans_stop,
+    "capture_assist_start": capture_assist_start,
+    "capture_assist_stop": capture_assist_stop,
     "assist_on": assist_on,
     "assist_off": assist_off,
 }

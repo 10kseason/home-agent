@@ -78,7 +78,7 @@ def test_ticker_restarts_stt(monkeypatch):
             await assist_handler(Event(type="assist.on", payload={}))
             app.state.stt_proc.dead = True
             await asyncio.sleep(0.01)
-            assert spawns.count("stt_assist.start") >= 2
+            assert spawns.count("mictrans.start") >= 2
             await assist_handler(Event(type="assist.off", payload={}))
 
     try:

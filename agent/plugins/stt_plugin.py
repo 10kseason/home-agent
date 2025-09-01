@@ -6,7 +6,7 @@ class STTPlugin(BasePlugin):
     handles = ["stt.text"]
 
     async def handle(self, event):
-        # Skip assist-mode transcripts; handled by stt_assist plugin
+        # Skip assist-mode transcripts; handled by mictrans plugin
         if event.payload.get("assist"):
             return
 

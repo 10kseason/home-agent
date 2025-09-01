@@ -74,31 +74,31 @@ tools: &tool_processes
     kind: "process_stop"
     id: "stt"
     method: "terminate"
-  stt_assist.start:
+  mictrans.start:
     kind: "process"
-    id: "stt_assist"
+    id: "mictrans"
     command: "python"
-    args: ["assist.py", "--config", "Assist-config.yaml"]
-    cwd: "./STT"
+    args: ["mictrans.py", "--config", "Assist-config.yaml"]
+    cwd: "./Mic-trans-assist"
     no_console: true
     env:
       AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-  stt_assist.stop:
+  mictrans.stop:
     kind: "process_stop"
-    id: "stt_assist"
+    id: "mictrans"
     method: "terminate"
-  ocr_assist.start:
+  capture_assist.start:
     kind: "process"
-    id: "ocr_assist"
+    id: "capture_assist"
     command: "python"
-    args: ["OCR-Assist.py"]
-    cwd: "./OCR"
+    args: ["capture_assist.py"]
+    cwd: "./Capture-assist"
     no_console: true
     env:
       AGENT_EVENT_URL: "http://127.0.0.1:8350/event"
-  ocr_assist.stop:
+  capture_assist.stop:
     kind: "process_stop"
-    id: "ocr_assist"
+    id: "capture_assist"
     method: "terminate"
   web.search:
     kind: "process"

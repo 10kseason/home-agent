@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location(
-    "assist", Path(__file__).resolve().parents[1] / "STT" / "assist.py"
+    "assist", Path(__file__).resolve().parents[1] / "Mic-trans-assist" / "mictrans.py"
 )
 assist = importlib.util.module_from_spec(spec)
 sys.modules["assist"] = assist
@@ -139,8 +139,8 @@ def test_notify_listening(monkeypatch):
     sys.modules["agent"] = pkg
     sys.modules["agent.sinks"] = sinks
     assist._notify_listening()
-    assert events == [("overlay.toast", {"title": "Assist-STT", "text": "마이크 청취 중"}, 5)]
-    assert ("Assist-STT", "마이크 청취 중") in called
+    assert events == [("overlay.toast", {"title": "Assist-MicTrans", "text": "마이크 청취 중"}, 5)]
+    assert ("Assist-MicTrans", "마이크 청취 중") in called
 
 
 def test_transcriber_skips_silence():
