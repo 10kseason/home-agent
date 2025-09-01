@@ -58,3 +58,7 @@
 - AssistCommandPlugin now minimizes LLM context with fixed prompts and SHA1-based caching for summarize/translate tasks, storing last translation. Further STT window tracking and broader context store remain.
 - Command router added to server so cmd.capture/assist/stop events trigger OCR/assist processes and cleanup, and EventBus now supports unsubscribe for clean shutdown. Assist and OCR configs force event.url to 8765 to avoid mismatched ports. Mapping for other commands like summarize/translate still pending.
 - Command router now parses cmd.detected payloads so capture voice commands launch the appropriate OCR process; added tests for cmd->ocr routing.
+- Added tool_gateway module to validate tool calls, map them to events with correlation/idempotency metadata, and tests covering assist-mode routing. Full integration with LLM runner pending.
+- Defined tool call contract via schemas/tool_calls.json and added Qwen system prompt requiring tool-only responses; tool gateway now loads schemas from file for validation.
+- Added stt_start/stt_stop and ocr_start/ocr_stop to the tool call schema and gateway so normal STT/OCR tools are invoked via structured tool_calls; further LLM integration remains.
+- Added assist_on tool and rerouted stt/ocr_start to assist events when assist mode is active; ocr_capture now always starts OCR assist and prompt examples teach models to avoid assist tools unless explicitly requested.
