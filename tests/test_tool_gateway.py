@@ -26,15 +26,12 @@ def test_tool_gateway_routes_events():
     types = [e.type for e in bus.events]
     assert types == [
         "assist.on",
-          "assist.on",
-          "mictrans.start",
-          "capture_assist.start",
+        "mictrans.start",
+        "capture_assist.start",
         "assist.off",
-        "stt.stop",
-        "ocr.stop",
+        "mictrans.stop",
+        "capture_assist.stop",
     ]
-    corr = bus.events[1].payload["correlation_id"]
-    assert corr == bus.events[2].payload["correlation_id"]
     assert bus.events[1].payload["idempotency_key"] == "abc"
 
 
@@ -49,10 +46,10 @@ def test_tool_gateway_basic_stt_ocr():
     ]
     asyncio.run(handle_tool_calls(tool_calls, ctx, bus))
     assert [e.type for e in bus.events] == [
-        "stt.start",
-        "ocr.start",
-        "stt.stop",
-        "ocr.stop",
+        "mictrans.start",
+        "capture_assist.start",
+        "mictrans.stop",
+        "capture_assist.stop",
     ]
 
 

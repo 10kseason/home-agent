@@ -19,19 +19,21 @@ def _post(name: str) -> Dict[str, Any]:
 
 
 def stt_start(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("stt.start")
+    # Alias to MicTrans voice input
+    return _post("mictrans.start")
 
 
 def stt_stop(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("stt.stop")
+    return _post("mictrans.stop")
 
 
 def ocr_start(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("ocr.start")
+    # Capture Assist handles OCR with a delay
+    return _post("capture_assist.start")
 
 
 def ocr_stop(_: Dict[str, Any]) -> Dict[str, Any]:
-    return _post("ocr.stop")
+    return _post("capture_assist.stop")
 
 
 def mictrans_start(_: Dict[str, Any]) -> Dict[str, Any]:

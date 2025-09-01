@@ -118,8 +118,8 @@ def create_app(ctx, plugins=None):
                     if app.state.stt_proc and app.state.stt_proc.poll() is None:
                         logger.info("[stt] already running")
                     else:
-                        key = "mictrans.start" if ev.type == "mictrans.start" or app.state.assist_mode else "stt.start"
-                        app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), key)
+                        # MicTrans handles voice input for both normal and assist modes
+                        app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
                 elif ev.type in ("stt.stop", "mictrans.stop"):
                     if app.state.assist_mode and ev.type != "mictrans.stop":
                         logger.info("[stt] stop ignored in assist mode")
@@ -141,8 +141,8 @@ def create_app(ctx, plugins=None):
                     if app.state.ocr_proc and app.state.ocr_proc.poll() is None:
                         logger.info("[ocr] already running")
                     else:
-                        key = "capture_assist.start" if ev.type == "capture_assist.start" or app.state.assist_mode else "ocr.start"
-                        app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), key)
+                        # Capture Assist provides delayed capture in all modes
+                        app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "capture_assist.start")
                 elif ev.type in ("ocr.stop", "capture_assist.stop"):
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
                     app.state.ocr_proc = None
@@ -186,7 +186,8 @@ def create_app(ctx, plugins=None):
                     app.state.assist_task = None
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
-                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt.start")
+                    # Resume voice input with MicTrans when leaving assist mode
+                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
                     app.state.ocr_proc = None
 
             ctx.bus.subscribe("assist.", _assist_handler)
@@ -213,10 +214,8 @@ def create_app(ctx, plugins=None):
 
                 # 라우팅
                 if c == "capture":
-                    # assist 모드면 capture_assist.start, 아니면 ocr.start
-                    etype = "capture_assist.start" if app.state.assist_mode else "ocr.start"
                     await ctx.bus.publish(Event(
-                        type=etype,
+                        type="capture_assist.start",
                         payload={"reason": "voice_cmd", "cmd": c, "ts": ts},
                         priority=2,
                         source="router",
@@ -239,8 +238,8 @@ def create_app(ctx, plugins=None):
                         source="router",
                         timestamp=_t.time(),
                     ))
-                    await ctx.bus.publish(Event(type="ocr.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
-                    await ctx.bus.publish(Event(type="stt.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
+                    await ctx.bus.publish(Event(type="capture_assist.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
+                    await ctx.bus.publish(Event(type="mictrans.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
                 # 필요하면 여기서 summarize/translate 등도 매핑
 
             ctx.bus.subscribe("cmd.", _cmd_handler)
