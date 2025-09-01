@@ -193,12 +193,14 @@ def create_app(ctx, plugins=None):
             app.state._plugin_unsubs.append(("assist.", _assist_handler))
 
             async def _cmd_handler(ev):
-                # 1) typed 이벤트 지원 (cmd.capture 등)
-                if ev.type.startswith("cmd."):
-                    c = ev.type.split(".", 1)[1]
-                # 2) generic 이벤트(cmd.detected) 지원
-                else:
+                # ``cmd.detected``는 payload 에서 명령을 추출해야 하므로 먼저 검사
+                if ev.type == "cmd.detected":
                     c = (ev.payload or {}).get("cmd")
+                # 그 외 ``cmd.*`` 타입은 이벤트명으로부터 명령을 파싱
+                elif ev.type.startswith("cmd."):
+                    c = ev.type.split(".", 1)[1]
+                else:
+                    c = None
 
                 if not c:
                     return
@@ -243,6 +245,7 @@ def create_app(ctx, plugins=None):
 
             ctx.bus.subscribe("cmd.", _cmd_handler)
             ctx.bus.subscribe("cmd.detected", _cmd_handler)  # generic도 받기
+            logger.info("[router] subscribed to 'cmd.*' and 'cmd.detected'")
             app.state._plugin_unsubs.append(("cmd.", _cmd_handler))
             app.state._plugin_unsubs.append(("cmd.detected", _cmd_handler))
 
