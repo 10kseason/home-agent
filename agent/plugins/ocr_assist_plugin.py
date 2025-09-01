@@ -1,0 +1,16 @@
+from . import BasePlugin
+from loguru import logger
+
+class OCRAssistPlugin(BasePlugin):
+    """Cleanup for OCR Assist text."""
+    name = "ocr_assist"
+    handles = ["ocr.text"]
+
+    async def handle(self, event):
+        if not event.payload.get("assist"):
+            return
+        text = event.payload.get("text", "")
+        text = text.replace("\u200b", "").strip()
+        event.payload["text"] = text
+        await self.ctx.bus.publish(event)
+        logger.debug(f"[{self.name}] cleaned and republished ocr.text")

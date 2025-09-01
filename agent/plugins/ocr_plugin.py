@@ -6,6 +6,10 @@ class OCRPlugin(BasePlugin):
     handles = ["ocr.text"]
 
     async def handle(self, event):
+        # Skip assist-mode OCR; handled by ocr_assist plugin
+        if event.payload.get("assist"):
+            return
+
         text = event.payload.get("text", "")
         # 간단한 노이즈 제거
         text = text.replace("\u200b", "").strip()
