@@ -66,3 +66,4 @@
 - Tool definitions converted to snake_case and expanded to include assist_on/off and start/stop handlers for STT/OCR in both normal and assist modes; configs, prompts, and overlay mappings updated for full tool_call compatibility.
 - Added mictrans and capture_assist plugins so assist-mode transcripts bypass default cleanup and are processed separately; future integration with wake-word triggers and advanced OCR/STT features still needed.
 - Renamed assist tools: STT assist -> MicTrans and OCR assist -> Capture Assist; updated configs, tool calls, and tests.
+- MicTrans and Capture Assist now include Luna Agent bridge and send overlay events via the orchestrator; MicTrans also emits a mictrans.started event when listening. Update AGENTS.md to require Luna bridge and orchestrator integration for all new tools. Wake-word triggers and broader assist features remain.

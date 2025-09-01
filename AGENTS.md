@@ -10,6 +10,8 @@ test: pytest -q
 - Do not leak secrets.
 - Ask for approval before sensitive actions.
 - Keep changes minimal and documented.
+- All new tools must include the Luna Agent bridge for event posting (see `STT/VSRG-Ts-to-kr.py`).
+- All new tools must be integrated into the Orchestrator; verify this integration whenever a tool is added.
 
 # Commands
 - Run tests: pytest -q

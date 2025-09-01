@@ -46,7 +46,10 @@ try:  # faster-whisper is optional for import-time
 except Exception:  # pragma: no cover - handled gracefully
     WhisperModel = None
 
-import requests
+import requests as _rq
+
+# Backwards-compatibility alias for tests expecting module-level `requests`
+requests = _rq
 import importlib.util
 import pathlib
 import sys
@@ -68,6 +71,7 @@ except Exception:  # pragma: no cover - script execution
     spec.loader.exec_module(cmd_mod)
     detect_command = cmd_mod.detect_command
 
+# ---- Luna Agent bridge (공통) ----
 _EVENT_URL = (
     os.environ.get("EVENT_URL")
     or os.environ.get("AGENT_EVENT_URL")
@@ -83,7 +87,7 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         headers = {"Content-Type": "application/json"}
         if _EVENT_KEY:
             headers["X-Agent-Key"] = _EVENT_KEY
-        requests.post(
+        _rq.post(
             _EVENT_URL,
             json={"type": _type, "payload": _payload, "priority": _prio},
             headers=headers,
@@ -93,10 +97,20 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
         pass
 
 
+def _overlay_toast(message: str, title: str = "Assist-MicTrans") -> None:
+    """Mirror messages to Lunar Bridge overlay as toasts."""
+    message = (message or "").strip()
+    if not message:
+        return
+    if len(message) > 240:
+        message = message[:239] + "…"
+    _post_event("overlay.toast", {"title": title, "text": message})
+
+
 def _notify_listening() -> None:
     """Toast notification that MicTrans is listening."""
     msg = "마이크 청취 중"
-    _post_event("overlay.toast", {"title": "Assist-MicTrans", "text": msg})
+    _overlay_toast(msg)
     try:
         from agent.sinks import toast_notify
 
@@ -232,7 +246,7 @@ class AssistTranscriber:
             "max_tokens": cfg.get("max_new_tokens", 512),
         }
         try:
-            r = requests.post(
+            r = _rq.post(
                 f"{endpoint}/chat/completions",
                 headers=headers,
                 json=payload,
@@ -466,6 +480,7 @@ def run(cfg: AssistConfig) -> None:
         device=device,
     ):
         _notify_listening()
+        _post_event("mictrans.started", {"ts": time.time()})
         threading.Timer(600, _notify_listening).start()
         threading.Thread(target=worker, daemon=True).start()
         ui.loop()
