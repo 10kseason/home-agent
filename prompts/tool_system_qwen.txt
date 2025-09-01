@@ -18,3 +18,7 @@
 <|assistant|>{"tool_calls":[{"type":"function","function":{"name":"assist_on","arguments":"{}"}}]}
 <|user|>보조 끄기
 <|assistant|>{"tool_calls":[{"type":"function","function":{"name":"assist_off","arguments":"{}"}}]}
+<|user|>STT 보조 꺼줘
+<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"stt_assist_stop","arguments":"{}"}}]}
+<|user|>OCR 보조 꺼줘
+<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"ocr_assist_stop","arguments":"{}"}}]}

@@ -28,8 +28,17 @@ TOOL_ROUTES = {
         ("assist.on", {"reason": "tool", "args": args}),
         ("stt_assist.start", {"reason": "tool"}),
     ],
+    "stt_assist_stop": lambda args, ctx: [
+        ("stt_assist.stop", {"reason": "tool"})
+    ],
     "ocr_capture": lambda args, ctx: [
         ("ocr_assist.start", {"region": args.get("region")})
+    ],
+    "ocr_assist_start": lambda args, ctx: [
+        ("ocr_assist.start", {"reason": "tool"})
+    ],
+    "ocr_assist_stop": lambda args, ctx: [
+        ("ocr_assist.stop", {"reason": "tool"})
     ],
     "assist_on": lambda args, ctx: [("assist.on", {"reason": "tool"})],
     "assist_off": lambda args, ctx: [

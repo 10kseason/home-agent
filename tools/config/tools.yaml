@@ -47,7 +47,79 @@ tools:
           description: "오디오 파일 경로"
       required: [audio_path]
 
-  - name: ocr_assist.start
+  - name: assist_on
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Enable assist mode"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: assist_off
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Disable assist mode"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: stt_start
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Start STT"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: stt_stop
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Stop STT"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: ocr_start
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Start OCR"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: ocr_stop
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Stop OCR"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: stt_assist_start
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Assist microphone transcription"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: stt_assist_stop
+    module: tools.tool.assist_control
+    class: null
+    enabled: true
+    desc: "Stop assist microphone transcription"
+    input_schema:
+      type: object
+      properties: {}
+
+  - name: ocr_assist_start
     module: tools.tool.assist_control
     class: null
     enabled: true
@@ -56,11 +128,11 @@ tools:
       type: object
       properties: {}
 
-  - name: stt_assist.start
+  - name: ocr_assist_stop
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Assist microphone transcription"
+    desc: "Stop assist OCR"
     input_schema:
       type: object
       properties: {}

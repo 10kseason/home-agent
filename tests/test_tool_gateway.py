@@ -60,7 +60,10 @@ def test_tool_schemas_loaded():
     names = {t["function"]["name"] for t in tool_gateway.TOOLS}
     assert {
         "stt_assist_start",
+        "stt_assist_stop",
         "ocr_capture",
+        "ocr_assist_start",
+        "ocr_assist_stop",
         "assist_on",
         "assist_off",
         "stt_start",
