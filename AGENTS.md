@@ -10,3 +10,7 @@ test: pytest -q
 # Commands
 - Run tests: pytest -q
 - Lint (optional): ruff .
+
+# Tools
+- capture_assist → emits `capture_assist.text`
+- mictrans → emits `mictrans.text`
