@@ -108,9 +108,9 @@ class EnhancedEventHandler:
             
             # 2. 기존 내장 처리기로 fallback
             success = False
-            if event_type.startswith("stt."):
+            if event_type.startswith("stt.") or event_type.startswith("mictrans."):
                 success = self._handle_stt(payload)
-            elif event_type.startswith("ocr."):
+            elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
                 success = self._handle_ocr(payload)
             elif event_type.startswith("web.search"):
                 success = self._handle_web_search(payload)

@@ -206,7 +206,7 @@ def main() -> None:
     text = _run_ocr(img, cfg)
     text = _refine_with_jan(text)
     if text:
-        _post_event("ocr.text", {"text": text, "source": "easyocr_assist", "assist": True})
+        _post_event("capture_assist.text", {"text": text, "source": "easyocr_assist", "assist": True})
         print(text)
         if cfg.announce_text:
             speak(cfg.announce_text, lang="ko")

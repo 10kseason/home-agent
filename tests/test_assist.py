@@ -102,7 +102,7 @@ def test_transcriber_posts_event():
     assert text == "hello"
     assert events == [
         (
-            "stt.text",
+            "mictrans.text",
             {"text": "hello", "source": "assist", "stt_model": "dummy", "assist": True},
             5,
         )
@@ -230,7 +230,7 @@ def test_llm_called_on_assist_command(monkeypatch):
     pcm = (np.full(cfg.sample_rate, 5000, dtype=np.int16)).tobytes()
     transcriber.transcribe(pcm)
     assert recorded["prompt"] == "tell me a joke"
-    assert events[0][0] == "stt.text"
+    assert events[0][0] == "mictrans.text"
     assert events[1][0] == "cmd.detected" and events[1][1]["cmd"] == "assist"
     assert events[2] == (
         "llm.chat",
