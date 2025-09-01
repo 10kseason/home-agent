@@ -46,3 +46,29 @@ tools:
           type: string
           description: "오디오 파일 경로"
       required: [audio_path]
+
+  - name: capture_assist
+    module: tools.tool.capture_assist
+    class: CaptureAssist
+    enabled: true
+    desc: "보조 캡처 텍스트 전달"
+    input_schema:
+      type: object
+      properties:
+        text:
+          type: string
+          description: "전달할 텍스트"
+      required: [text]
+
+  - name: mictrans
+    module: tools.tool.mictrans
+    class: MicTrans
+    enabled: true
+    desc: "마이크 전사 텍스트 전달"
+    input_schema:
+      type: object
+      properties:
+        text:
+          type: string
+          description: "전사된 텍스트"
+      required: [text]

@@ -10,7 +10,15 @@ def strip_think(text: str) -> str:
 
 class TranslatorPlugin(BasePlugin):
     name = "translator"
-    handles = ["ocr.text", "stt.text", "discord.batch", "discord.text", "notif.batch"]
+    handles = [
+        "ocr.text",
+        "stt.text",
+        "discord.batch",
+        "discord.text",
+        "notif.batch",
+        "capture_assist.text",
+        "mictrans.text",
+    ]
 
     async def _translate_once(self, endpoint, model, api_key, text: str, target_lang: str) -> Optional[str]:
         headers = {"Content-Type": "application/json"}
