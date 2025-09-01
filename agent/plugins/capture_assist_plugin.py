@@ -1,9 +1,9 @@
 from . import BasePlugin
 from loguru import logger
 
-class OCRAssistPlugin(BasePlugin):
-    """Cleanup for OCR Assist text."""
-    name = "ocr_assist"
+class CaptureAssistPlugin(BasePlugin):
+    """Cleanup for Capture Assist text."""
+    name = "capture_assist"
     handles = ["ocr.text"]
 
     async def handle(self, event):

@@ -31,20 +31,20 @@ def test_assist_tool_events(monkeypatch):
 
         app = server.create_app(ctx)
         async with app.router.lifespan_context(app):
-            stt_handler = None
-            ocr_handler = None
-            for prefix, h in app.state._plugin_unsubs:
-                if prefix == "stt_assist.":
-                    stt_handler = h
-                elif prefix == "ocr_assist.":
-                    ocr_handler = h
-            assert stt_handler is not None
-            assert ocr_handler is not None
+              stt_handler = None
+              ocr_handler = None
+              for prefix, h in app.state._plugin_unsubs:
+                  if prefix == "mictrans.":
+                      stt_handler = h
+                  elif prefix == "capture_assist.":
+                      ocr_handler = h
+              assert stt_handler is not None
+              assert ocr_handler is not None
 
-            await stt_handler(Event(type="stt_assist.start", payload={}))
-            await ocr_handler(Event(type="ocr_assist.start", payload={}))
+              await stt_handler(Event(type="mictrans.start", payload={}))
+              await ocr_handler(Event(type="capture_assist.start", payload={}))
 
-        assert spawns == ["stt_assist.start", "ocr_assist.start"]
+        assert spawns == ["mictrans.start", "capture_assist.start"]
 
     try:
         asyncio.run(runner())

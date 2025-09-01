@@ -38,9 +38,8 @@ def test_cmd_detected_to_ocr():
     events = asyncio.run(_run(ctx, "ocr."))
     assert events == ["ocr.start"]
 
-
-def test_cmd_detected_to_ocr_assist():
+def test_cmd_detected_to_capture_assist():
     ctx = SimpleNamespace(config={}, bus=EventBus(dedup_window=0), assist_mode=True)
-    events = asyncio.run(_run(ctx, "ocr_assist."))
-    assert events == ["ocr_assist.start"]
+    events = asyncio.run(_run(ctx, "capture_assist."))
+    assert events == ["capture_assist.start"]
 

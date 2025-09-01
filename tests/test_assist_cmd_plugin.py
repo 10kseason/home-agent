@@ -47,13 +47,13 @@ def test_capture_repeat():
             events.append(ev.type)
         async def noop(ev):
             pass
-        ctx.bus.subscribe("ocr_assist.", collect)
+        ctx.bus.subscribe("capture_assist.", collect)
         ctx.bus.subscribe("overlay.", noop)
         await plugin.handle(Event(type="cmd.detected", payload={"cmd": "capture"}))
         await dispatch_all(ctx.bus)
         await plugin.handle(Event(type="cmd.detected", payload={"cmd": "repeat"}))
         await dispatch_all(ctx.bus)
-        assert events == ["ocr_assist.start", "ocr_assist.start"]
+        assert events == ["capture_assist.start", "capture_assist.start"]
     asyncio.run(runner())
 
 

@@ -61,7 +61,7 @@ class AssistCommandPlugin(BasePlugin):
 
         if cmd == "capture":
             await self._toast("📸 캡처")
-            await self.ctx.bus.publish(Event(type="ocr_assist.start", payload={}))
+            await self.ctx.bus.publish(Event(type="capture_assist.start", payload={}))
 
         elif cmd == "summarize":
             if not self.last_ocr:

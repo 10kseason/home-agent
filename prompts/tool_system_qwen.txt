@@ -11,7 +11,7 @@
 <|user|>음성 받아줘
 <|assistant|>{"tool_calls":[{"type":"function","function":{"name":"stt_start","arguments":"{}"}}]}
 <|user|>STT 보조 켜줘
-<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"stt_assist_start","arguments":"{}"}}]}
+<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"mictrans_start","arguments":"{}"}}]}
 <|user|>OCR 켜줘
 <|assistant|>{"tool_calls":[{"type":"function","function":{"name":"ocr_start","arguments":"{}"}}]}
 <|user|>보조모드 켜줘
@@ -19,6 +19,6 @@
 <|user|>보조 끄기
 <|assistant|>{"tool_calls":[{"type":"function","function":{"name":"assist_off","arguments":"{}"}}]}
 <|user|>STT 보조 꺼줘
-<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"stt_assist_stop","arguments":"{}"}}]}
+<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"mictrans_stop","arguments":"{}"}}]}
 <|user|>OCR 보조 꺼줘
-<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"ocr_assist_stop","arguments":"{}"}}]}
+<|assistant|>{"tool_calls":[{"type":"function","function":{"name":"capture_assist_stop","arguments":"{}"}}]}

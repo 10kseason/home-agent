@@ -38,26 +38,26 @@ tools:
       id: "stt"
       method: "terminate"
 
-    stt_assist.start:
+    mictrans.start:
       kind: "process"
       id: "stt"
       command: "python"
-      args: ["assist.py", "--config", "Assist-config.yaml"]
-      cwd: "../STT"
+      args: ["mictrans.py", "--config", "Assist-config.yaml"]
+      cwd: "../Mic-trans-assist"
       no_console: true
-    stt_assist.stop:
+    mictrans.stop:
       kind: "process_stop"
       id: "stt"
       method: "terminate"
 
-    ocr_assist.start:
+    capture_assist.start:
       kind: "process"
       id: "ocr"
       command: "python"
-      args: ["OCR-Assist.py"]
-      cwd: "../OCR"
+      args: ["capture_assist.py"]
+      cwd: "../Capture-assist"
       no_console: true
-    ocr_assist.stop:
+    capture_assist.stop:
       kind: "process_stop"
       id: "ocr"
       method: "terminate"

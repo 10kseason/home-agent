@@ -101,7 +101,7 @@ tools:
       type: object
       properties: {}
 
-  - name: stt_assist_start
+  - name: mictrans_start
     module: tools.tool.assist_control
     class: null
     enabled: true
@@ -110,7 +110,7 @@ tools:
       type: object
       properties: {}
 
-  - name: stt_assist_stop
+  - name: mictrans_stop
     module: tools.tool.assist_control
     class: null
     enabled: true
@@ -119,7 +119,7 @@ tools:
       type: object
       properties: {}
 
-  - name: ocr_assist_start
+  - name: capture_assist_start
     module: tools.tool.assist_control
     class: null
     enabled: true
@@ -128,7 +128,7 @@ tools:
       type: object
       properties: {}
 
-  - name: ocr_assist_stop
+  - name: capture_assist_stop
     module: tools.tool.assist_control
     class: null
     enabled: true
