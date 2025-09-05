@@ -1637,9 +1637,30 @@ class OverlayWindow(QtWidgets.QWidget):
                 
                 # 이벤트 핸들러로 처리
                 success = handler.handle_event(event_type, payload)
-                
+
+                # Agent 서버에도 동일 이벤트 전달
+                try:
+                    agent = self.cfg.get("agent") or {}
+                    base = agent.get("event_url") or self.cfg.get("event_url")
+                    if base:
+                        base = base.rstrip("/").rsplit("/", 1)[0]
+                        url = f"{base}/plugin/event"
+                        import httpx
+                        httpx.post(
+                            url,
+                            json={
+                                "type": event_type,
+                                "payload": payload,
+                                "priority": priority,
+                                "source": source,
+                            },
+                            timeout=5.0,
+                        )
+                except Exception as e:
+                    logger.error(f"[proxy] forward to agent failed: {e}")
+
                 return {
-                    "ok": success, 
+                    "ok": success,
                     "message": "queued" if success else "failed",
                     "type": event_type
                 }
