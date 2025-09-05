@@ -295,7 +295,7 @@ class AssistTranscriber:
                 "stt_model": getattr(self.model, "model_size", "unknown"),
                 "assist": True,
             }
-            self.event_func("mictrans.text", payload)
+            self.event_func("stt.text", payload)
             if self.ui:
                 self.ui.push(text)
             cmd = detect_command(text, self.cfg)

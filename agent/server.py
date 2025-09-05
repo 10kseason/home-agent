@@ -114,22 +114,35 @@ def create_app(ctx, plugins=None):
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
 
             async def _stt_handler(ev):
-                if ev.type in ("stt.start", "mictrans.start"):
+                if ev.type == "stt.start":
+                    # mictrans가 실행 중이면 종료하고 STT 시작
                     if app.state.stt_proc and app.state.stt_proc.poll() is None:
-                        logger.info("[stt] already running")
-                    else:
-                        # MicTrans handles voice input for both normal and assist modes
-                        app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
-                elif ev.type in ("stt.stop", "mictrans.stop"):
-                    if app.state.assist_mode and ev.type != "mictrans.stop":
-                        logger.info("[stt] stop ignored in assist mode")
-                    else:
-                        await _terminate_proc(
-                            getattr(app.state, "stt_proc", None),
-                            name="stt",
-                            timeout=3.0,
-                        )
-                        app.state.stt_proc = None
+                        logger.info("[stt] terminating mictrans to start STT")
+                        await _terminate_proc(app.state.stt_proc, name="mictrans", timeout=3.0)
+                    
+                    # 기본 STT (영어 뉴스용) 시작
+                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt.start")
+                    logger.info("[stt] started basic STT (VSRG-Ts-to-kr.py)")
+                    
+                elif ev.type == "mictrans.start":
+                    # STT가 실행 중이면 종료하고 mictrans 시작
+                    if app.state.stt_proc and app.state.stt_proc.poll() is None:
+                        logger.info("[mictrans] terminating STT to start mictrans")
+                        await _terminate_proc(app.state.stt_proc, name="stt", timeout=3.0)
+                    
+                    # 보조모드 음성입력 (Whisper) 시작
+                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
+                    logger.info("[mictrans] started voice input (Whisper)")
+                    
+                elif ev.type == "stt.stop":
+                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                    app.state.stt_proc = None
+                    logger.info("[stt] stopped")
+                    
+                elif ev.type == "mictrans.stop":
+                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="mictrans", timeout=3.0)
+                    app.state.stt_proc = None
+                    logger.info("[mictrans] stopped")
 
             ctx.bus.subscribe("stt.", _stt_handler)
             ctx.bus.subscribe("mictrans.", _stt_handler)
@@ -156,23 +169,14 @@ def create_app(ctx, plugins=None):
                 if ev.type == "assist.on":
                     app.state.assist_mode = True
                     ctx.assist_mode = True
+                    # 기존 프로세스 정리만 하고 자동 시작하지 않음
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
-                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
-                    app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "capture_assist.start")
+                    app.state.stt_proc = None
+                    app.state.ocr_proc = None
 
-                    if app.state.assist_task is None:
-                        async def _ticker():
-                            while app.state.assist_mode:
-                                proc = getattr(app.state, "stt_proc", None)
-                                if proc is None or proc.poll() is not None:
-                                    logger.info("[assist] restarting mictrans")
-                                    app.state.stt_proc = _spawn_tool(
-                                        getattr(ctx, "config", {}),
-                                        "mictrans.start",
-                                    )
-                                await asyncio.sleep(5)
-                        app.state.assist_task = asyncio.create_task(_ticker())
+                    # 보조모드 활성화됨 - 수동으로 도구 시작 필요
+                    logger.info("[assist] 보조모드 활성화 - 명시적 명령으로 도구 시작 필요")
                 elif ev.type == "assist.off":
                     app.state.assist_mode = False
                     ctx.assist_mode = False
@@ -186,9 +190,9 @@ def create_app(ctx, plugins=None):
                     app.state.assist_task = None
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
-                    # Resume voice input with MicTrans when leaving assist mode
-                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
+                    app.state.stt_proc = None
                     app.state.ocr_proc = None
+                    logger.info("[assist] 보조모드 종료 - 수동으로 도구 시작 필요")
 
             ctx.bus.subscribe("assist.", _assist_handler)
             app.state._plugin_unsubs.append(("assist.", _assist_handler))
