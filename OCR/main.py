@@ -11,7 +11,7 @@ LM Studio OCR → Translation Snipping Tool
 
 완료 시
 - 결과 창은 띄우지 않음 (요청사항)
-- 번역 결과를 클립보드로 복사 + Windows 토스트만 표시
+- 번역 결과를 클립보드로 복사 + 오버레이 토스트만 표시
 """
 
 from __future__ import annotations
@@ -55,6 +55,16 @@ def _post_event(_type, _payload, _prio=5):
         )
     except Exception:
         pass
+
+
+def _overlay_toast(message: str, title: str = "OCR") -> None:
+    """Send a toast message to the Lunar overlay."""
+    message = (message or "").strip()
+    if not message:
+        return
+    if len(message) > 240:
+        message = message[:239] + "…"
+    _post_event("overlay.toast", {"title": title, "text": message})
 
 
 import requests
@@ -498,15 +508,6 @@ class MainWindow(QMainWindow):
             return self._truncate(f"OCR:\n{ocr_text}\n\nTRANSLATION:\n{translated}", 260)
         return self._truncate(translated or ocr_text)
 
-    def _show_windows_notification(self, title: str, message: str):
-        # Lunar Bridge → Overlay toast
-        _post_event("overlay.toast", {"title": title, "text": message})
-        try:
-            from win10toast import ToastNotifier  # type: ignore
-            ToastNotifier().show_toast(title, message, duration=8, threaded=True)
-            return
-        except Exception:
-            pass
 
     # ---------- 이벤트 ----------
     def on_save(self):
@@ -611,9 +612,9 @@ class MainWindow(QMainWindow):
         )
 
         if self.cfg.get("notify_on_finish", True):
-            self._show_windows_notification(
-                "번역 완료 (클립보드 복사됨)",
+            _overlay_toast(
                 self._build_notify_text(ocr_clean, trans_clean),
+                "번역 완료 (클립보드 복사됨)",
             )
 
     def on_error(self, msg: str):
