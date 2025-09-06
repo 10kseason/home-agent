@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 import sys
+import time
 
 spec = importlib.util.spec_from_file_location(
     "capture_assist", Path(__file__).resolve().parents[1] / "Capture-assist" / "capture_assist.py"
@@ -110,9 +111,8 @@ def test_main_overlay_and_toast_on_text(monkeypatch):
     assert messages[-1] == "EasyOCR로 OCR했어요. Overlay 확인 해주세요."
 
 
-def test_main_cleans_log(monkeypatch, tmp_path):
+def test_main_appends_log(monkeypatch, tmp_path):
     log_file = tmp_path / "capture_assist.log"
-    log_file.write_text("old", encoding="utf-8")
     monkeypatch.setattr(capture_assist, "LOG_PATH", log_file)
     monkeypatch.setattr(capture_assist, "_notify", lambda msg: None)
     monkeypatch.setattr(capture_assist, "_overlay_toast", lambda msg, title="Assist-Capture": None)
@@ -123,4 +123,16 @@ def test_main_cleans_log(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["capture_assist.py"])
     monkeypatch.setattr(capture_assist, "speak", lambda text, lang="ko": None)
     capture_assist.main()
-    assert not log_file.exists()
+    assert log_file.exists()
+    assert "hello" in log_file.read_text(encoding="utf-8")
+
+
+def test_prune_log_removes_old_entries(tmp_path):
+    from agent import server
+    log_file = tmp_path / "capture_assist.log"
+    now = time.time()
+    lines = [f"{now-120}\told", f"{now-30}\tnew"]
+    log_file.write_text("\n".join(lines), encoding="utf-8")
+    server._prune_capture_log(log_file, older_than=60)
+    remaining = log_file.read_text(encoding="utf-8").strip().splitlines()
+    assert remaining == [lines[1]]

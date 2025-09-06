@@ -1,10 +1,46 @@
 import asyncio, os, sys, subprocess, platform, time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends, Header, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 from .schemas import Event, Result, PluginEventIn
+
+CAPTURE_LOG_PATH = Path(__file__).resolve().parents[1] / "Capture-assist" / "capture_assist.log"
+
+
+def _clear_capture_log(path: Path = CAPTURE_LOG_PATH) -> None:
+    try:
+        if path.exists():
+            path.unlink()
+    except Exception:
+        pass
+
+
+def _prune_capture_log(path: Path = CAPTURE_LOG_PATH, older_than: float = 60.0) -> None:
+    now = time.time()
+    try:
+        if not path.exists():
+            return
+        lines = path.read_text(encoding="utf-8").splitlines()
+        kept = []
+        for line in lines:
+            try:
+                ts, _rest = line.split("\t", 1)
+                if float(ts) >= now - older_than:
+                    kept.append(line)
+            except Exception:
+                continue
+        path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    except Exception:
+        pass
+
+
+async def _capture_log_worker():
+    while True:
+        await asyncio.sleep(60)
+        _prune_capture_log()
 
 def _spawn_overlay(cfg):
     ov = (cfg or {}).get("overlay", {}) or {}
@@ -86,6 +122,7 @@ def create_app(ctx, plugins=None):
         app.state.capture_proc = None
         app.state.assist_mode = bool(getattr(ctx, "assist_mode", False))
         app.state.assist_task = None
+        app.state.capture_log_task = asyncio.create_task(_capture_log_worker())
         # Watch overlay process so the agent exits when overlay closes
         if app.state.overlay_proc:
             async def _overlay_watch():
@@ -351,6 +388,21 @@ def create_app(ctx, plugins=None):
             except Exception as e:
                 logger.debug(f"[lifespan] assist task cancel error: {e}")
             app.state.assist_task = None
+
+            # Stop capture log cleaner
+            try:
+                task = getattr(app.state, "capture_log_task", None)
+                if task:
+                    task.cancel()
+                    try:
+                        await task
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.debug(f"[lifespan] capture log task cancel error: {e}")
+            app.state.capture_log_task = None
+
+            _clear_capture_log()
 
     app = FastAPI(title="Luna Local Agent", lifespan=lifespan)
 
