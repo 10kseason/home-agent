@@ -16,5 +16,5 @@ class MicTransPlugin(BasePlugin):
             if not dedup or dedup[-1] != p:
                 dedup.append(p)
         event.payload["text"] = " ".join(dedup)
-        await self.ctx.bus.publish(event)
-        logger.debug(f"[{self.name}] cleaned and republished mictrans.text")
+        # 이벤트 객체는 그대로 전달되므로 재전송하지 않는다.
+        logger.debug(f"[{self.name}] cleaned mictrans.text")

@@ -13,7 +13,7 @@ class OCRPlugin(BasePlugin):
         text = event.payload.get("text", "")
         # 간단한 노이즈 제거
         text = text.replace("\u200b", "").strip()
-        # 다음 단계로 번역을 유도하기 위해 translator가 듣는 동일 타입을 다시 publish
         event.payload["text"] = text
-        await self.ctx.bus.publish(event)  # 재전송 → translator가 수신
-        logger.debug(f"[{self.name}] cleaned and republished ocr.text")
+        # 이벤트는 원본 객체가 전달되므로 재전송 없이도 후속 플러그인이
+        # 정제된 텍스트를 수신한다. 재발행하면 Overlay에 중복 표시되므로 생략.
+        logger.debug(f"[{self.name}] cleaned ocr.text")
