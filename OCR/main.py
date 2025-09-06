@@ -27,34 +27,29 @@ from pathlib import Path
 # ---- Luna Agent bridge (공통) ----
 import requests as _rq
 # 이벤트 전송 URL: Overlay 또는 Agent로 전달
-_EVENT_URL = (
-    os.environ.get("EVENT_URL")
-    or os.environ.get("AGENT_EVENT_URL")
-    or os.environ.get("OVERLAY_EVENT_URL")
-    or "http://127.0.0.1:8350/event"
+_AGENT_EVENT_URL = (
+    os.environ.get("AGENT_EVENT_URL")
+    or os.environ.get("EVENT_URL")
+    or "http://127.0.0.1:8765/event"
 )
+_OVERLAY_EVENT_URL = os.environ.get("OVERLAY_EVENT_URL") or "http://127.0.0.1:8350/event"
 _EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
-# 환경변수 fallback (별도 지정이 없을 때 Overlay로 직접 전송)
-if not os.environ.get("EVENT_URL") and not os.environ.get("AGENT_EVENT_URL"):
-    os.environ["EVENT_URL"] = _EVENT_URL
-    print("[OCR] Set fallback EVENT_URL")
-print(f"[OCR] Using EVENT_URL: {os.environ.get('EVENT_URL') or _EVENT_URL}")
-
 def _post_event(_type, _payload, _prio=5):
-    """Send OCR/translation results to overlay or agent."""
-    try:
-        headers = {"Content-Type": "application/json"}
-        if _EVENT_KEY:
-            headers["X-Agent-Key"] = _EVENT_KEY
-        _rq.post(
-            _EVENT_URL,
-            json={"type": _type, "payload": _payload, "priority": _prio},
-            headers=headers,
-            timeout=3,
-        )
-    except Exception:
-        pass
+    """Send OCR/translation results to both agent server and overlay."""
+    headers = {"Content-Type": "application/json"}
+    if _EVENT_KEY:
+        headers["X-Agent-Key"] = _EVENT_KEY
+    for url in (_AGENT_EVENT_URL, _OVERLAY_EVENT_URL):
+        try:
+            _rq.post(
+                url,
+                json={"type": _type, "payload": _payload, "priority": _prio},
+                headers=headers,
+                timeout=3,
+            )
+        except Exception:
+            pass
 
 
 def _overlay_toast(message: str, title: str = "OCR") -> None:

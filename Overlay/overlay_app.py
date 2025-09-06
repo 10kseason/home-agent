@@ -266,7 +266,7 @@ class EventHandler:
         # 동시 수신 메시지 필터링 (3ms 내)
         if not self._should_process_concurrent_message(text, source_type):
             return False
-        
+
         # 모드 추적 및 필터링
         if is_assist or "mictrans" in source.lower():
             mode = "mictrans"
@@ -282,15 +282,16 @@ class EventHandler:
                 return False
             self.active_modes.add(mode)
             self._update_mode_activity(mode)
-            
-        # 기본 텍스트
-        display_text = text
-        
-        # 번역이 있으면 추가
-        translation = payload.get("translation", "")
-        if translation and translation.strip() != text:
-            display_text += f"\n🔄 {translation}"
-        
+
+        # 프리뷰 Tiny 모델은 무시
+        model_name = (payload.get("model") or "").lower()
+        if payload.get("preview") and "tiny" in model_name:
+            return False
+
+        # 번역이 있으면 그대로 사용, 아니면 원문 사용
+        translation = payload.get("translation", "").strip()
+        display_text = translation or text
+
         # 신뢰도 표시
         confidence = payload.get("confidence", 0)
         if confidence > 0 and confidence < 0.8:
@@ -302,9 +303,8 @@ class EventHandler:
             display_text += f" [{language}]"
 
         # 사용된 STT 모델 정보
-        model = payload.get("model", "")
-        if model:
-            display_text += f" ({model})"
+        if model_name:
+            display_text += f" ({model_name})"
 
         label = "Assist-MicTrans" if payload.get("assist") else "🎤 STT"
         self._emit_safe(label, display_text)

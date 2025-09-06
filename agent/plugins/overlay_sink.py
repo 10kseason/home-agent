@@ -127,22 +127,19 @@ class EnhancedOverlaySink(BasePlugin):
 
     def _format_stt_event(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """STT 이벤트 포맷팅"""
+        model = (payload.get("model") or "").lower()
+        if payload.get("preview") and "tiny" in model:
+            return None
+
         text = payload.get("text", "")
         translation = payload.get("translation", "")
         confidence = payload.get("confidence", 0)
-        
-        # 메인 텍스트
-        display_text = self._truncate_text(text)
-        
-        # 번역이 있고 원문과 다르면 추가
-        if translation and translation.strip() != text.strip():
-            trans_text = self._truncate_text(translation, max_len=100)
-            display_text += f"\n🔄 {trans_text}"
-        
-        # 신뢰도가 낮으면 표시
+
+        display_text = self._truncate_text(translation or text)
+
         if confidence > 0 and confidence < 0.7:
             display_text += f" (신뢰도: {confidence:.0%})"
-        
+
         return {
             "type": "stt.result",
             "payload": {
@@ -150,8 +147,8 @@ class EnhancedOverlaySink(BasePlugin):
                 "original": text,
                 "translation": translation,
                 "confidence": confidence,
-                "assist": payload.get("assist", False)
-            }
+                "assist": payload.get("assist", False),
+            },
         }
 
     def _format_ocr_event(self, event_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
