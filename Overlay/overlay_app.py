@@ -636,21 +636,9 @@ class Orchestrator:
         tools_map.setdefault('stt.stop',  te['stt']['event_url'])
         tools_map.setdefault('mictrans.start', te['stt']['event_url'])
         tools_map.setdefault('mictrans.stop',  te['stt']['event_url'])
-        tools_map.setdefault('capture_assist.start', te['ocr']['event_url'])
-        tools_map.setdefault('capture_assist.stop',  te['ocr']['event_url'])
         tools_map.setdefault('assist.on', te['stt']['event_url'])
         tools_map.setdefault('assist.off', te['stt']['event_url'])
-        # snake_case aliases
-        tools_map.setdefault('ocr_start', te['ocr']['event_url'])
-        tools_map.setdefault('ocr_stop',  te['ocr']['event_url'])
-        tools_map.setdefault('stt_start', te['stt']['event_url'])
-        tools_map.setdefault('stt_stop',  te['stt']['event_url'])
-        tools_map.setdefault('mictrans_start', te['stt']['event_url'])
-        tools_map.setdefault('mictrans_stop',  te['stt']['event_url'])
-        tools_map.setdefault('capture_assist_start', te['ocr']['event_url'])
-        tools_map.setdefault('capture_assist_stop',  te['ocr']['event_url'])
-        tools_map.setdefault('assist_on', te['stt']['event_url'])
-        tools_map.setdefault('assist_off', te['stt']['event_url'])
+        # No more snake_case aliases - use dot notation only
         te.setdefault('web', {'event_url': 'http://127.0.0.1:8765/event'})
         tools_map.setdefault('web.search', te['web']['event_url'])
         te.setdefault('discord', {'event_url': 'http://127.0.0.1:8765/event'})
@@ -666,22 +654,12 @@ class Orchestrator:
                 daemon=True,
             ).start()
 
-        if self.assist_mode:
-            allowed = {
-                k: v
-                for k, v in tools_map.items()
-                if k.startswith('mictrans') or k.startswith('capture_assist') or k.startswith('assist.') or k.startswith('assist_')
-            }
-            self.cfg['tools'] = allowed
-            self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
-        else:
-            allowed = {
-                k: v
-                for k, v in tools_map.items()
-                if not (k.startswith('mictrans') or k.startswith('capture_assist') or k.startswith('assist.') or k.startswith('assist_'))
-            }
-            self.cfg['tools'] = allowed
-            self.tool_handlers = {k: v for k, v in TOOL_HANDLERS.items() if k in allowed}
+        # Remove assist-mode gating: allow all tools in both modes.
+        # Note: Overlay will route dot-named tools (e.g., 'mictrans.start') to the Agent event endpoint.
+        # Local underscore handlers (e.g., 'assist_on') remain available for UI/commands.
+        self.cfg['tools'] = dict(tools_map)
+        # Expose all local tool handlers; run_tool_calls will prefer handler when names match.
+        self.tool_handlers = dict(TOOL_HANDLERS)
 
     def _check_assist_mode(self) -> bool:
         try:
@@ -850,11 +828,13 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
             self.history_tools = [{"role": "system", "content": self._system_prompt_tools()}]
             self.history_chat  = [{"role": "system", "content": self._system_prompt_chat()}]
 
-    async def _chat_complete_raw(self, llm_cfg: Dict[str, Any], messages: List[Dict[str, str]]) -> Dict[str, Any]:
+    async def _chat_complete_raw(self, llm_cfg: Dict[str, Any], messages: List[Dict[str, str]], tools: List[Dict] = None) -> Dict[str, Any]:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if llm_cfg.get("api_key"):
             headers["Authorization"] = f"Bearer {llm_cfg['api_key']}"
         payload = {"model": llm_cfg["model"], "messages": messages, "temperature": 0.2}
+        if tools:
+            payload["tools"] = tools
         timeout = httpx.Timeout(connect=5.0, read=float(llm_cfg.get("timeout_seconds", 60)), write=15.0, pool=10.0)
         url = f"{llm_cfg['endpoint'].rstrip('/')}/chat/completions"
         logger.info(f"[llm] POST {url} model={llm_cfg['model']} msgs={len(messages)}")
@@ -929,8 +909,21 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
         llm_context = f"{system_note}\n\n[SAFE SUMMARY]\n{guard['safe_summary']}"
         msgs = self.history_tools[-8:] + [{"role":"user","content":llm_context}]
 
+        # ① tools 스키마 로드
+        tools = None
+        try:
+            import json
+            import pathlib
+            tools_path = pathlib.Path(__file__).resolve().parent.parent / "schemas" / "tool_calls.json" 
+            if tools_path.exists():
+                with open(tools_path, "r", encoding="utf-8") as f:
+                    tools = json.load(f)
+                logger.info(f"[llm] loaded {len(tools)} tools for LLM")
+        except Exception as e:
+            logger.warning(f"[llm] failed to load tools schema: {e}")
+        
         # ① 모델 호출
-        resp = await self._chat_complete_raw(llm, msgs)
+        resp = await self._chat_complete_raw(llm, msgs, tools)
         out = resp.get("content") or ""
         tc_openai = resp.get("tool_calls") or []
 
@@ -944,12 +937,11 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
         # ③ 휴리스틱(최우선)
         tc_heur = self._heuristic_route(user_text)
 
-        # ④ 허용 툴만 통과
-        allowed = set(self.cfg.get("tools", {}).keys()) | set(self.tool_handlers.keys()) | {"overlay.open_url"}  # ← agent.event 는 비허용
+        # ④ 모든 툴 허용 (필터링 제거)
         def _filter_ok(calls):
             ok=[];
             for tc in (calls or []):
-                if isinstance(tc, dict) and (tc.get("name") in allowed):
+                if isinstance(tc, dict) and tc.get("name"):
                     ok.append({"name": tc["name"], "args": tc.get("args") or {}})
             return ok
 
@@ -1086,13 +1078,15 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
     async def run_tool_calls(self, tool_calls: List[Dict[str, Any]]):
         if not tool_calls:
             return
+        logger.info(f"[run_tool_calls] Executing {len(tool_calls)} tool(s): {[tc.get('name') for tc in tool_calls if isinstance(tc, dict)]}")
         tcfg = self.cfg.get("tools", {})
         for call in tool_calls:
             if not isinstance(call, dict):
                 continue
             name = (call or {}).get("name", "")
             args = (call or {}).get("args", {}) or {}
-
+            
+            logger.info(f"[run_tool_calls] Processing tool: {name} with args: {args}")
             before_tool(name, args)
 
             if self.cfg.get("assist_debug"):
@@ -1126,6 +1120,7 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
 
             spec = tcfg.get(name)
             handler = self.tool_handlers.get(name)
+            logger.info(f"[run_tool_calls] Tool {name}: spec={spec}, handler={handler is not None}")
             try:
                 if handler:
                     res = handler(args)
@@ -1146,8 +1141,12 @@ A: {"say": "안녕하세요! 무엇을 도와드릴까요?", "tool_calls": []}
                         logger.warning(f"[tool] unknown dict kind for {name}: {kind}")
                     continue
                 if isinstance(spec, str) and spec.startswith("http"):
-                    self._emit_event(name, args, url=spec)
-                    logger.info(f"[tool] {name} → {spec}")
+                    # Send as llm.response event with tool_calls payload
+                    payload = {"tool_calls": [{"name": name, "args": args}]}
+                    logger.info(f"[run_tool_calls] Sending HTTP event: {name} → {spec}")
+                    logger.info(f"[run_tool_calls] Event payload: llm.response with {payload}")
+                    self._emit_event("llm.response", payload, url=spec)
+                    logger.info(f"[tool] {name} → {spec} (as llm.response)")
                 elif name == "agent.event":
                     pr = int(args.get("priority", 5))
                     self._emit_event(args.get("type", "note"), args.get("payload", {}), priority=pr, url=self.cfg["agent"]["event_url"])
