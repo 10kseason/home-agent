@@ -199,13 +199,18 @@ class EventHandler:
             if self.debug_mode:
                 logger.info(f"[event] Processing {event_type}: {payload}")
 
+            # STT와 OCR 계열 이벤트는 오버레이가 직접 처리하지 않음
+            if (
+                event_type.startswith("stt.")
+                or event_type.startswith("mictrans.")
+                or event_type.startswith("ocr.")
+                or event_type.startswith("capture_assist.")
+            ):
+                return False
+
             # 이벤트 타입별 처리
             success = False
-            if event_type.startswith("stt.") or event_type.startswith("mictrans."):
-                success = self._handle_stt(payload)
-            elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
-                success = self._handle_ocr(event_type, payload)
-            elif event_type.startswith("web.search"):
+            if event_type.startswith("web.search"):
                 success = self._handle_web_search(payload)
             elif event_type.startswith("llm.") or event_type.startswith("lm."):
                 success = self._handle_llm(payload)
@@ -213,10 +218,10 @@ class EventHandler:
                 success = self._handle_overlay_event(event_type, payload)
             else:
                 success = self._handle_generic(event_type, payload)
-                
+
             if not success:
                 self.stats.errors += 1
-                
+
             return success
             
         except Exception as e:
