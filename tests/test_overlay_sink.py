@@ -16,7 +16,7 @@ def test_capture_assist_event_forwarded(monkeypatch):
     event = Event(type="capture_assist.text", payload={"text": "hello", "assist": True})
     asyncio.run(sink.handle(event))
 
-    assert captured['payload']['type'] == 'ocr.result'
+    assert captured['payload']['type'] == 'capture_assist.result'
     inner = captured['payload']['payload']
     assert inner['text'] == 'hello'
     assert inner['assist'] is True
@@ -39,3 +39,20 @@ def test_mictrans_event_forwarded(monkeypatch):
     assert inner['original'] == 'hi'
     assert inner['translation'] == '안녕'
     assert '안녕' in inner['text']
+
+
+def test_ocr_event_forwarded(monkeypatch):
+    sink = EnhancedOverlaySink()
+    captured = {}
+
+    async def fake_post(url, payload):
+        captured['payload'] = payload
+        return True
+
+    sink._post_with_retry = fake_post  # type: ignore
+    event = Event(type="ocr.text", payload={"text": "generic"})
+    asyncio.run(sink.handle(event))
+
+    assert captured['payload']['type'] == 'ocr.result'
+    inner = captured['payload']['payload']
+    assert inner['text'] == 'generic'

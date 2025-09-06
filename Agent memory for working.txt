@@ -84,3 +84,4 @@
 - Overlay sink now routes overlay.* events to the dedicated /overlay/event endpoint so toast messages appear on the Luna overlay.
 - MicTrans restarts now terminate any existing process before relaunching on repeated start events.
 - Toast notifications via agent.sinks.toast_notify now also post overlay.toast events so server toasts appear in the Luna overlay. Some modules still call their own overlay toasts; consolidation and deduplication remain.
+- Overlay sink now forwards generic `ocr.text` events as `ocr.result` and uses `capture_assist.result` for EasyOCR outputs so the Luna overlay shows both standard and assist OCR results.
