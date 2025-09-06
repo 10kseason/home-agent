@@ -30,7 +30,16 @@ TIMEOUT_SECONDS = float(os.environ.get("OVERLAY_TIMEOUT", "3.0"))
 
 class EnhancedOverlaySink(BasePlugin):
     name = "enhanced_overlay_sink"
-    handles: List[str] = ["stt.", "ocr.", "llm.", "lm.", "web.search", "overlay."]
+    handles: List[str] = [
+        "stt.",
+        "mictrans.",
+        "ocr.",
+        "capture_assist.",
+        "llm.",
+        "lm.",
+        "web.search",
+        "overlay.",
+    ]
 
     def __init__(self):
         self.last_connection_check = 0
@@ -251,9 +260,9 @@ class EnhancedOverlaySink(BasePlugin):
             # 이벤트 타입별 포맷팅
             formatted_event = None
             
-            if event_type.startswith("stt."):
+            if event_type.startswith("stt.") or event_type.startswith("mictrans."):
                 formatted_event = self._format_stt_event(payload)
-            elif event_type.startswith("ocr."):
+            elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
                 formatted_event = self._format_ocr_event(payload)
             elif event_type.startswith("llm.") or event_type.startswith("lm."):
                 formatted_event = self._format_llm_event(payload)

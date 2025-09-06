@@ -76,3 +76,5 @@
 - Capture Assist logs now record each OCR result; the agent server prunes entries older than one minute and clears the log on shutdown. Further capture assist logging features remain.
 - Overlay now labels capture_assist.text events as "Assist-Capture" so OCR results appear in the overlay window; further integration like ROI highlighting remains.
 - Capture Assist plugin no longer republishes events after cleaning text, preventing dedup drops; similar cleanup for MicTrans and broader assist integration still pending.
+
+- Overlay sink now forwards capture_assist and mictrans events so OCR and voice input results appear in the overlay; further assist integration remains.
