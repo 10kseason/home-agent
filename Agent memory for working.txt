@@ -81,3 +81,5 @@
 - Tool gateway now routes stt_start/stt_stop to stt.* and ocr_start/ocr_stop to ocr.*, with server spawning separate STT and MicTrans processes so basic STT/OCR can run alongside MicTrans and Capture Assist. Further resource coordination and wake-word integration remain.
 - Server logs overlay.toast events to avoid missing subscriber warnings; test ensures toast logs.
 - Tool call schema switched to snake_case with clear STT/OCR vs MicTrans/Capture Assist descriptions so local LLMs don't confuse subtitle translation with voice input or EasyOCR capture; prompts, tool configs, and docs updated accordingly.
+- Overlay sink now routes overlay.* events to the dedicated /overlay/event endpoint so toast messages appear on the Luna overlay.
+- MicTrans restarts now terminate any existing process before relaunching on repeated start events.

@@ -287,7 +287,8 @@ class EnhancedOverlaySink(BasePlugin):
             })
             
             # Overlay로 전송
-            success = await self._post_with_retry(OVERLAY_EVENT_URL, formatted_event)
+            target_url = OVERLAY_TOAST_URL if event_type.startswith("overlay.") else OVERLAY_EVENT_URL
+            success = await self._post_with_retry(target_url, formatted_event)
             
             if success:
                 logger.debug(f"[overlay_sink] Sent {event_type} to overlay")
