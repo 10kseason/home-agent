@@ -176,10 +176,9 @@ def create_app(ctx, plugins=None):
 
                 elif ev.type == "mictrans.start":
                     if app.state.mictrans_proc and app.state.mictrans_proc.poll() is None:
-                        logger.info("[mictrans] already running")
-                    else:
-                        app.state.mictrans_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
-                        logger.info("[mictrans] started voice input (Whisper)")
+                        await _terminate_proc(app.state.mictrans_proc, name="mictrans", timeout=3.0)
+                    app.state.mictrans_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
+                    logger.info("[mictrans] started voice input (Whisper)")
 
                 elif ev.type == "mictrans.stop":
                     await _terminate_proc(getattr(app.state, "mictrans_proc", None), name="mictrans", timeout=3.0)
