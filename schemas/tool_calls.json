@@ -1,96 +1,17 @@
 [
-  {
-    "type": "function",
-    "function": {
-      "name": "mictrans_start",
-      "description": "Start mic-transcription assist overlay",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "mictrans_stop",
-      "description": "Stop mic-transcription assist overlay",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "ocr_capture",
-      "description": "Trigger OCR capture via assist overlay",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "region": { "type": "string", "description": "optional screen region id" }
-        },
-        "additionalProperties": false
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "assist_on",
-      "description": "Enable assist mode without starting tools",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "assist_off",
-      "description": "Stop all assist features",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "stt_start",
-      "description": "Start STT in normal mode",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "stt_stop",
-      "description": "Stop STT",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "ocr_start",
-      "description": "Start OCR in normal mode",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "ocr_stop",
-      "description": "Stop OCR",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "capture_assist_start",
-      "description": "Start capture assist OCR",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "capture_assist_stop",
-      "description": "Stop capture assist",
-      "parameters": { "type": "object", "properties": {}, "additionalProperties": false }
-    }
-  }
+  { "type": "function", "function": { "name": "mictrans.start", "description": "Start mic-transcription assist", "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  { "type": "function", "function": { "name": "mictrans.stop",  "description": "Stop mic-transcription assist",  "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+
+  { "type": "function", "function": { "name": "stt.start",      "description": "Start STT (normal mode)",        "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  { "type": "function", "function": { "name": "stt.stop",       "description": "Stop STT",                       "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+
+  { "type": "function", "function": { "name": "ocr.start",      "description": "Start OCR (VLM+translate)",      "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  { "type": "function", "function": { "name": "ocr.stop",       "description": "Stop OCR",                      "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+
+  { "type": "function", "function": { "name": "capture_assist.start", "description": "Start Capture Assist (EasyOCR)", "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  { "type": "function", "function": { "name": "capture_assist.stop",  "description": "Stop Capture Assist",         "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+
+  { "type": "function", "function": { "name": "assist.on",      "description": "Enable assist mode",            "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  { "type": "function", "function": { "name": "assist.off",     "description": "Disable assist mode",           "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } }
 ]
+

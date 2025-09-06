@@ -33,6 +33,11 @@ def detect_command(text: str, cfg) -> Optional[str]:
                 if syn in text:
                     _LAST_CMD_MS = now_ms
                     return cmd
+    # Fallback synonyms (hard-coded) for robust capture command detection
+    low = text.lower()
+    if any(k in low for k in ["스크린샷", "스크린 샷", "screenshot", "화면 캡쳐", "화면 캡처"]):
+        _LAST_CMD_MS = now_ms
+        return "capture"
     return None
 
 def process_text(text: str, cfg, event_func: Callable[[str, dict, int], None] | None = None) -> Optional[str]:

@@ -83,6 +83,7 @@ def create_app(ctx, plugins=None):
         app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
         app.state.stt_proc = None
         app.state.ocr_proc = None
+        app.state.capture_proc = None
         app.state.assist_mode = bool(getattr(ctx, "assist_mode", False))
         app.state.assist_task = None
         # Watch overlay process so the agent exits when overlay closes
@@ -150,15 +151,29 @@ def create_app(ctx, plugins=None):
             app.state._plugin_unsubs.append(("mictrans.", _stt_handler))
 
             async def _ocr_handler(ev):
-                if ev.type in ("ocr.start", "capture_assist.start"):
+                # Separate pipelines: 'ocr.*' (VLM OCR + translate) vs 'capture_assist.*' (EasyOCR only)
+                if ev.type == "ocr.start":
                     if app.state.ocr_proc and app.state.ocr_proc.poll() is None:
                         logger.info("[ocr] already running")
                     else:
-                        # Capture Assist provides delayed capture in all modes
-                        app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "capture_assist.start")
-                elif ev.type in ("ocr.stop", "capture_assist.stop"):
+                        app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "ocr.start")
+                        logger.info("[ocr] started VLM OCR pipeline")
+                elif ev.type == "ocr.stop":
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "capture_proc", None), name="capture_assist", timeout=3.0)
                     app.state.ocr_proc = None
+                    app.state.capture_proc = None
+                    logger.info("[ocr] stopped")
+                elif ev.type == "capture_assist.start":
+                    if app.state.capture_proc and app.state.capture_proc.poll() is None:
+                        logger.info("[capture_assist] already running")
+                    else:
+                        app.state.capture_proc = _spawn_tool(getattr(ctx, "config", {}), "capture_assist.start")
+                        logger.info("[capture_assist] started")
+                elif ev.type == "capture_assist.stop":
+                    await _terminate_proc(getattr(app.state, "capture_proc", None), name="capture_assist", timeout=3.0)
+                    app.state.capture_proc = None
+                    logger.info("[capture_assist] stopped")
 
             ctx.bus.subscribe("ocr.", _ocr_handler)
             ctx.bus.subscribe("capture_assist.", _ocr_handler)
@@ -252,6 +267,17 @@ def create_app(ctx, plugins=None):
             app.state._plugin_unsubs.append(("cmd.", _cmd_handler))
             app.state._plugin_unsubs.append(("cmd.detected", _cmd_handler))
 
+            # Tool gateway handler for LLM responses
+            async def _llm_handler(ev):
+                if ev.type == "llm.response":
+                    logger.info(f"[server] Received llm.response event: {ev.payload}")
+                    from .tool_gateway import process_response
+                    await process_response(ev.payload or {}, ctx, ctx.bus)
+                    
+            ctx.bus.subscribe("llm.response", _llm_handler)
+            app.state._plugin_unsubs.append(("llm.response", _llm_handler))
+            logger.info("[tool-gw] subscribed to 'llm.response'")
+
             # Start event bus loop
             app.state.bus_task = asyncio.create_task(ctx.bus.run())
             yield
@@ -307,9 +333,11 @@ def create_app(ctx, plugins=None):
             # Shutdown OCR
             try:
                 await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                await _terminate_proc(getattr(app.state, "capture_proc", None), name="capture_assist", timeout=3.0)
             except Exception as e:
                 logger.debug(f"[lifespan] ocr terminate error: {e}")
             app.state.ocr_proc = None
+            app.state.capture_proc = None
 
             # Cancel assist ticker
             try:
