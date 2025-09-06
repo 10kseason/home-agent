@@ -86,9 +86,108 @@ class EventHandler:
         self.window = window
         self.stats = EventStats()
         self.debug_mode = False
+        # 현재 활성 모드 추적 (STT/OCR 간섭 방지)
+        self.active_modes = set()  # {"stt", "ocr", "mictrans", "capture_assist"}
+        self.mode_last_activity = {}  # 각 모드의 마지막 활동 시간
+        # 중복 메시지 필터링을 위한 최근 메시지 저장
+        self.recent_messages = {}  # {text_hash: timestamp}
+        # 동시 수신 메시지 필터링 (3ms 내)
+        self.concurrent_messages = {}  # {text_hash: (timestamp, source_type, processed)}
         
     def set_debug_mode(self, enabled: bool):
         self.debug_mode = enabled
+        
+    def _cleanup_inactive_modes(self):
+        """비활성 모드 정리 (10초 후 자동 제거)"""
+        import time
+        current_time = time.time()
+        inactive_modes = []
+        
+        for mode, last_time in self.mode_last_activity.items():
+            if current_time - last_time > 10:  # 10초 후 정리
+                inactive_modes.append(mode)
+        
+        for mode in inactive_modes:
+            self.active_modes.discard(mode)
+            self.mode_last_activity.pop(mode, None)
+    
+    def _update_mode_activity(self, mode: str):
+        """모드 활동 시간 업데이트"""
+        import time
+        self.mode_last_activity[mode] = time.time()
+        self._cleanup_inactive_modes()
+        
+    def _is_duplicate_message(self, text: str) -> bool:
+        """중복 메시지 확인 (5초 내)"""
+        import time, hashlib
+        current_time = time.time()
+        
+        # 텍스트 해시 생성
+        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+        
+        # 오래된 메시지 정리 (5초)
+        old_hashes = []
+        for msg_hash, timestamp in self.recent_messages.items():
+            if current_time - timestamp > 5:
+                old_hashes.append(msg_hash)
+        for old_hash in old_hashes:
+            self.recent_messages.pop(old_hash, None)
+        
+        # 중복 확인
+        if text_hash in self.recent_messages:
+            return True
+            
+        # 새 메시지 저장
+        self.recent_messages[text_hash] = current_time
+        return False
+        
+    def _should_process_concurrent_message(self, text: str, source_type: str) -> bool:
+        """3ms 내 동시 수신 메시지 중 하나만 처리"""
+        import time, hashlib
+        current_time = time.time()
+        
+        # 텍스트 해시 생성
+        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+        
+        # 오래된 메시지 정리 (100ms)
+        old_hashes = []
+        for msg_hash, (timestamp, src, processed) in list(self.concurrent_messages.items()):
+            if current_time - timestamp > 0.1:  # 100ms
+                old_hashes.append(msg_hash)
+        for old_hash in old_hashes:
+            self.concurrent_messages.pop(old_hash, None)
+        
+        # 이미 처리된 메시지인지 확인
+        if text_hash in self.concurrent_messages:
+            existing_time, existing_source, processed = self.concurrent_messages[text_hash]
+            
+            # 3ms 내 동시 수신인지 확인
+            if current_time - existing_time <= 0.003:  # 3ms
+                if processed:
+                    return False  # 이미 처리됨
+                
+                # 우선순위 결정 (Mictrans > Capture Assist > STT > OCR)
+                priority_order = {
+                    "mictrans": 1,
+                    "capture_assist": 2, 
+                    "stt": 3,
+                    "ocr": 4
+                }
+                
+                current_priority = priority_order.get(source_type, 5)
+                existing_priority = priority_order.get(existing_source, 5)
+                
+                if current_priority <= existing_priority:
+                    # 현재 메시지가 더 높은 우선순위 또는 같은 우선순위
+                    self.concurrent_messages[text_hash] = (existing_time, source_type, True)
+                    return True
+                else:
+                    # 기존 메시지가 더 높은 우선순위
+                    return False
+            
+        # 새로운 메시지 등록
+        self.concurrent_messages[text_hash] = (current_time, source_type, True)
+        return True
         
     def handle_event(self, event_type: str, payload: Dict[str, Any]) -> bool:
         """이벤트 처리 메인 로직"""
@@ -99,15 +198,6 @@ class EventHandler:
             
             if self.debug_mode:
                 logger.info(f"[event] Processing {event_type}: {payload}")
-
-            # 공통 텍스트 이벤트 정규화
-            if event_type in ("stt.text", "ocr.text", "capture_assist.text"):
-                text = payload.get("text") or payload.get("translation") or ""
-                if text:
-                    source = payload.get("source", event_type.split('.')[0])
-                    self._emit_safe(source, text)
-                    return True
-                return False
 
             # 이벤트 타입별 처리
             success = False
@@ -152,6 +242,47 @@ class EventHandler:
         if not text:
             return False
             
+        # 중복 메시지 필터링
+        if self._is_duplicate_message(text):
+            return False
+        
+        # Assist 모드 확인
+        is_assist = payload.get("assist", False)
+        source = payload.get("source", "")
+        
+        # STT 모델 필터링 - 메인 STT(small.en)만 허용
+        model = payload.get("model", "")
+        if not is_assist and "mictrans" not in source.lower():
+            # 일반 STT의 경우 small.en 모델만 허용
+            if model and "small.en" not in model:
+                return False
+        
+        # 소스 타입 결정
+        if is_assist or "mictrans" in source.lower():
+            source_type = "mictrans"
+        else:
+            source_type = "stt"
+            
+        # 동시 수신 메시지 필터링 (3ms 내)
+        if not self._should_process_concurrent_message(text, source_type):
+            return False
+        
+        # 모드 추적 및 필터링
+        if is_assist or "mictrans" in source.lower():
+            mode = "mictrans"
+            self.active_modes.add(mode)
+            self._update_mode_activity(mode)
+        else:
+            mode = "stt"
+            # 일반 STT 동작 중일 때 Mictrans가 활성이면 차단
+            if "mictrans" in self.active_modes:
+                return False
+            # 일반 OCR이 활성이면 차단 (Capture Assist 제외)
+            if "ocr" in self.active_modes:
+                return False
+            self.active_modes.add(mode)
+            self._update_mode_activity(mode)
+            
         # 기본 텍스트
         display_text = text
         
@@ -184,6 +315,38 @@ class EventHandler:
         text = payload.get("text", "") or payload.get("ocr", "")
         if not text:
             return False
+            
+        # 중복 메시지 필터링
+        if self._is_duplicate_message(text.strip()):
+            return False
+        
+        # Assist 모드 확인
+        is_assist = event_type.startswith("capture_assist.") or payload.get("assist", False)
+        source = payload.get("source", "")
+        
+        # 소스 타입 결정
+        if is_assist:
+            source_type = "capture_assist"
+        else:
+            source_type = "ocr"
+            
+        # 동시 수신 메시지 필터링 (3ms 내)
+        if not self._should_process_concurrent_message(text.strip(), source_type):
+            return False
+        
+        # 모드 추적 및 필터링
+        if is_assist:
+            mode = "capture_assist"
+            # Capture Assist는 항상 허용 (Mictrans와 함께 동작 가능)
+            self.active_modes.add(mode)
+            self._update_mode_activity(mode)
+        else:
+            mode = "ocr"
+            # 일반 OCR 동작 중일 때 Mictrans나 STT가 활성이면 차단
+            if "mictrans" in self.active_modes or "stt" in self.active_modes:
+                return False
+            self.active_modes.add(mode)
+            self._update_mode_activity(mode)
             
         text = text.strip()
         display_text = text
@@ -283,6 +446,22 @@ class EventHandler:
         if event_type == "overlay.toast":
             title = payload.get("title", "알림")
             text = payload.get("text", "")
+            
+            # 필터링할 타이틀들
+            filtered_titles = {
+                "번역 완료",
+                "번역 완료 (클립보드 복사됨)",
+                "Capture-assist"  # 이모지 없는 캡쳐 어시스트
+            }
+            
+            # STT 관련 필터링
+            if "STT" in title or "stt" in title.lower():
+                return False
+                
+            # 필터링 대상 타이틀 차단
+            if title in filtered_titles:
+                return False
+                
             if text:
                 self._emit_safe(f"📢 {title}", text)
                 return True
