@@ -43,7 +43,18 @@ class TranslatorPlugin(BasePlugin):
             r = await client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
             r.raise_for_status()
             data = r.json()
-            return (data["choices"][0]["message"]["content"] or "").strip()
+            try:
+                choice = data.get("choices", [{}])[0]
+                content = (
+                    choice.get("message", {}).get("content")
+                    or choice.get("content")
+                    or choice.get("text")
+                    or ""
+                )
+                return content.strip() or None
+            except Exception as e:
+                logger.error(f"translate parse error: {e}; data={data}")
+                return None
 
     async def _translate(self, text: str, target_lang: str = "ko") -> Optional[str]:
         cfg = self.ctx.config.get("translate", {})
