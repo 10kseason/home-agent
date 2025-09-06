@@ -93,3 +93,4 @@
 - OCR, MicTrans, and Capture Assist plugins now avoid republishing cleaned events to prevent overlay duplication. Further wake-word handling and deep assist integration remain.
 - Translator plugin now collapses duplicate STT translations and skips overlay toasts for stt.* events, preventing repeated Korean output and ensuring OCR results continue to reach the overlay.
 - STT translations now output directly to overlay (skipping Tiny preview models), and OCR/Capture Assist post results to both agent server and overlay.
+- STT, MicTrans, OCR, and Capture Assist now post events only to the agent server so the overlay sink and toast handler relay messages to the Luna overlay; remaining deduplication and assist-mode orchestration still need work.

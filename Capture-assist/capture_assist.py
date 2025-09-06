@@ -37,12 +37,11 @@ except Exception:  # pragma: no cover - runtime dependency
     easyocr = None
 
 # ---- Luna Agent bridge (공통) ----
-_AGENT_EVENT_URL = (
+_EVENT_URL = (
     os.environ.get("AGENT_EVENT_URL")
     or os.environ.get("EVENT_URL")
     or "http://127.0.0.1:8765/event"
 )
-_OVERLAY_EVENT_URL = os.environ.get("OVERLAY_EVENT_URL") or "http://127.0.0.1:8350/event"
 _EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
 LOG_PATH = pathlib.Path(__file__).with_name("capture_assist.log")
@@ -52,16 +51,15 @@ def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
     headers = {"Content-Type": "application/json"}
     if _EVENT_KEY:
         headers["X-Agent-Key"] = _EVENT_KEY
-    for url in (_AGENT_EVENT_URL, _OVERLAY_EVENT_URL):
-        try:
-            _rq.post(
-                url,
-                json={"type": _type, "payload": _payload, "priority": _prio},
-                headers=headers,
-                timeout=3,
-            )
-        except Exception:
-            pass
+    try:
+        _rq.post(
+            _EVENT_URL,
+            json={"type": _type, "payload": _payload, "priority": _prio},
+            headers=headers,
+            timeout=3,
+        )
+    except Exception:
+        pass
 
 
 def _overlay_toast(message: str, title: str = "Assist-Capture") -> None:

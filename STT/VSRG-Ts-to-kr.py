@@ -37,11 +37,10 @@ import requests
 import soundfile as sf
 # ---- Luna Agent bridge (공통) ----
 import requests as _rq
-# 이벤트 전송 URL: Overlay에 직접 보내거나 Agent를 거쳐 전달
+# 이벤트 전송 URL: 항상 에이전트 서버를 거쳐 전달
 _EVENT_URL = (
     os.environ.get("EVENT_URL")
     or os.environ.get("AGENT_EVENT_URL")
-    or os.environ.get("OVERLAY_EVENT_URL")
     or "http://127.0.0.1:8350/event"
 )
 _EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
