@@ -78,3 +78,6 @@
 - Capture Assist plugin no longer republishes events after cleaning text, preventing dedup drops; similar cleanup for MicTrans and broader assist integration still pending.
 
 - Overlay sink now forwards capture_assist and mictrans events so OCR and voice input results appear in the overlay; further assist integration remains.
+- Tool gateway now routes stt_start/stt_stop to stt.* and ocr_start/ocr_stop to ocr.*, with server spawning separate STT and MicTrans processes so basic STT/OCR can run alongside MicTrans and Capture Assist. Further resource coordination and wake-word integration remain.
+- Server logs overlay.toast events to avoid missing subscriber warnings; test ensures toast logs.
+- Tool call schema switched to snake_case with clear STT/OCR vs MicTrans/Capture Assist descriptions so local LLMs don't confuse subtitle translation with voice input or EasyOCR capture; prompts, tool configs, and docs updated accordingly.

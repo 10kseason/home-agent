@@ -1,17 +1,17 @@
 [
-  { "type": "function", "function": { "name": "mictrans.start", "description": "Start mic-transcription assist", "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
-  { "type": "function", "function": { "name": "mictrans.stop",  "description": "Stop mic-transcription assist",  "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  {"type": "function", "function": {"name": "mictrans_start", "description": "Start MicTrans voice input (emits mictrans.text)", "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
+  {"type": "function", "function": {"name": "mictrans_stop",  "description": "Stop MicTrans voice input",          "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
 
-  { "type": "function", "function": { "name": "stt.start",      "description": "Start STT (normal mode)",        "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
-  { "type": "function", "function": { "name": "stt.stop",       "description": "Stop STT",                       "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  {"type": "function", "function": {"name": "stt_start",       "description": "Start STT translator (English→Korean subtitles)", "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
+  {"type": "function", "function": {"name": "stt_stop",        "description": "Stop STT translator",                   "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
 
-  { "type": "function", "function": { "name": "ocr.start",      "description": "Start OCR (VLM+translate)",      "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
-  { "type": "function", "function": { "name": "ocr.stop",       "description": "Stop OCR",                      "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  {"type": "function", "function": {"name": "ocr_start",       "description": "Start OCR using vision model",           "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
+  {"type": "function", "function": {"name": "ocr_stop",        "description": "Stop OCR",                               "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
 
-  { "type": "function", "function": { "name": "capture_assist.start", "description": "Start Capture Assist (EasyOCR)", "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
-  { "type": "function", "function": { "name": "capture_assist.stop",  "description": "Stop Capture Assist",         "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  {"type": "function", "function": {"name": "ocr_capture",     "description": "Capture screen with EasyOCR (Capture Assist)", "parameters": {"type": "object", "properties": {"region": {"type": "string"}}, "additionalProperties": false}}},
+  {"type": "function", "function": {"name": "capture_assist_start", "description": "Start Capture Assist (EasyOCR)",         "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
+  {"type": "function", "function": {"name": "capture_assist_stop",  "description": "Stop Capture Assist",                     "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
 
-  { "type": "function", "function": { "name": "assist.on",      "description": "Enable assist mode",            "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } },
-  { "type": "function", "function": { "name": "assist.off",     "description": "Disable assist mode",           "parameters": { "type": "object", "properties": {}, "additionalProperties": false } } }
+  {"type": "function", "function": {"name": "assist_on",       "description": "Enable assist mode",                      "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}},
+  {"type": "function", "function": {"name": "assist_off",      "description": "Disable assist mode",                     "parameters": {"type": "object", "properties": {}, "additionalProperties": false}}}
 ]
-

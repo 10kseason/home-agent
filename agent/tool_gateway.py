@@ -45,10 +45,10 @@ TOOL_ROUTES = {
         ("mictrans.stop", {"reason": "tool"}),
         ("capture_assist.stop", {"reason": "tool"}),
     ],
-    "stt_start": lambda args, ctx: [("mictrans.start", {"reason": "tool"})],
-    "stt_stop": lambda args, ctx: [("mictrans.stop", {"reason": "tool"})],
-    "ocr_start": lambda args, ctx: [("capture_assist.start", {"reason": "tool"})],
-    "ocr_stop": lambda args, ctx: [("capture_assist.stop", {"reason": "tool"})],
+    "stt_start": lambda args, ctx: [("stt.start", {"reason": "tool"})],
+    "stt_stop": lambda args, ctx: [("stt.stop", {"reason": "tool"})],
+    "ocr_start": lambda args, ctx: [("ocr.start", {"reason": "tool"})],
+    "ocr_stop": lambda args, ctx: [("ocr.stop", {"reason": "tool"})],
 }
 
 

@@ -46,10 +46,10 @@ def test_tool_gateway_basic_stt_ocr():
     ]
     asyncio.run(handle_tool_calls(tool_calls, ctx, bus))
     assert [e.type for e in bus.events] == [
-        "mictrans.start",
-        "capture_assist.start",
-        "mictrans.stop",
-        "capture_assist.stop",
+        "stt.start",
+        "ocr.start",
+        "stt.stop",
+        "ocr.stop",
     ]
 
 
@@ -88,8 +88,8 @@ def test_stt_ocr_start_assist_mode():
     ]
     asyncio.run(handle_tool_calls(tool_calls, ctx, bus))
     assert [e.type for e in bus.events] == [
-        "mictrans.start",
-        "capture_assist.start",
+        "stt.start",
+        "ocr.start",
     ]
 
 

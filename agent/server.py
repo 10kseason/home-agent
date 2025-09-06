@@ -118,6 +118,7 @@ def create_app(ctx, plugins=None):
         # Startup
         app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
         app.state.stt_proc = None
+        app.state.mictrans_proc = None
         app.state.ocr_proc = None
         app.state.capture_proc = None
         app.state.assist_mode = bool(getattr(ctx, "assist_mode", False))
@@ -151,35 +152,38 @@ def create_app(ctx, plugins=None):
                     app.state._plugin_unsubs.append((prefix, _handler))
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
 
+            async def _toast_handler(ev):
+                payload = ev.payload or {}
+                title = payload.get("title", "")
+                text = payload.get("text", "")
+                logger.info(f"[toast] {title}: {text}")
+
+            ctx.bus.subscribe("overlay.toast", _toast_handler)
+            app.state._plugin_unsubs.append(("overlay.toast", _toast_handler))
+
             async def _stt_handler(ev):
                 if ev.type == "stt.start":
-                    # mictrans가 실행 중이면 종료하고 STT 시작
                     if app.state.stt_proc and app.state.stt_proc.poll() is None:
-                        logger.info("[stt] terminating mictrans to start STT")
-                        await _terminate_proc(app.state.stt_proc, name="mictrans", timeout=3.0)
-                    
-                    # 기본 STT (영어 뉴스용) 시작
-                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt.start")
-                    logger.info("[stt] started basic STT (VSRG-Ts-to-kr.py)")
-                    
-                elif ev.type == "mictrans.start":
-                    # STT가 실행 중이면 종료하고 mictrans 시작
-                    if app.state.stt_proc and app.state.stt_proc.poll() is None:
-                        logger.info("[mictrans] terminating STT to start mictrans")
-                        await _terminate_proc(app.state.stt_proc, name="stt", timeout=3.0)
-                    
-                    # 보조모드 음성입력 (Whisper) 시작
-                    app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
-                    logger.info("[mictrans] started voice input (Whisper)")
-                    
+                        logger.info("[stt] already running")
+                    else:
+                        app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt.start")
+                        logger.info("[stt] started basic STT (VSRG-Ts-to-kr.py)")
+
                 elif ev.type == "stt.stop":
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
                     app.state.stt_proc = None
                     logger.info("[stt] stopped")
-                    
+
+                elif ev.type == "mictrans.start":
+                    if app.state.mictrans_proc and app.state.mictrans_proc.poll() is None:
+                        logger.info("[mictrans] already running")
+                    else:
+                        app.state.mictrans_proc = _spawn_tool(getattr(ctx, "config", {}), "mictrans.start")
+                        logger.info("[mictrans] started voice input (Whisper)")
+
                 elif ev.type == "mictrans.stop":
-                    await _terminate_proc(getattr(app.state, "stt_proc", None), name="mictrans", timeout=3.0)
-                    app.state.stt_proc = None
+                    await _terminate_proc(getattr(app.state, "mictrans_proc", None), name="mictrans", timeout=3.0)
+                    app.state.mictrans_proc = None
                     logger.info("[mictrans] stopped")
 
             ctx.bus.subscribe("stt.", _stt_handler)
@@ -223,9 +227,13 @@ def create_app(ctx, plugins=None):
                     ctx.assist_mode = True
                     # 기존 프로세스 정리만 하고 자동 시작하지 않음
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "mictrans_proc", None), name="mictrans", timeout=3.0)
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "capture_proc", None), name="capture_assist", timeout=3.0)
                     app.state.stt_proc = None
+                    app.state.mictrans_proc = None
                     app.state.ocr_proc = None
+                    app.state.capture_proc = None
 
                     # 보조모드 활성화됨 - 수동으로 도구 시작 필요
                     logger.info("[assist] 보조모드 활성화 - 명시적 명령으로 도구 시작 필요")
@@ -241,9 +249,13 @@ def create_app(ctx, plugins=None):
                             pass
                     app.state.assist_task = None
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "mictrans_proc", None), name="mictrans", timeout=3.0)
                     await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                    await _terminate_proc(getattr(app.state, "capture_proc", None), name="capture_assist", timeout=3.0)
                     app.state.stt_proc = None
+                    app.state.mictrans_proc = None
                     app.state.ocr_proc = None
+                    app.state.capture_proc = None
                     logger.info("[assist] 보조모드 종료 - 수동으로 도구 시작 필요")
 
             ctx.bus.subscribe("assist.", _assist_handler)
@@ -360,12 +372,14 @@ def create_app(ctx, plugins=None):
                 logger.debug(f"[lifespan] overlay terminate error: {e}")
             app.state.overlay_proc = None
 
-            # Shutdown STT
+            # Shutdown STT and MicTrans
             try:
                 await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
+                await _terminate_proc(getattr(app.state, "mictrans_proc", None), name="mictrans", timeout=3.0)
             except Exception as e:
                 logger.debug(f"[lifespan] stt terminate error: {e}")
             app.state.stt_proc = None
+            app.state.mictrans_proc = None
 
             # Shutdown OCR
             try:

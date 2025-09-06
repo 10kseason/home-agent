@@ -69,7 +69,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Start STT"
+    desc: "Start STT translator (English→Korean subtitles)"
     input_schema:
       type: object
       properties: {}
@@ -78,7 +78,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Stop STT"
+    desc: "Stop STT translator"
     input_schema:
       type: object
       properties: {}
@@ -87,7 +87,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Start OCR"
+    desc: "Start OCR using vision model"
     input_schema:
       type: object
       properties: {}
@@ -105,7 +105,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Assist microphone transcription (emits mictrans.text)"
+    desc: "Assist microphone transcription for voice input (emits mictrans.text)"
     input_schema:
       type: object
       properties: {}
@@ -123,7 +123,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Assist OCR capture (emits capture_assist.text)"
+    desc: "Assist OCR capture using EasyOCR (emits capture_assist.text)"
     input_schema:
       type: object
       properties: {}
@@ -132,7 +132,7 @@ tools:
     module: tools.tool.assist_control
     class: null
     enabled: true
-    desc: "Stop assist OCR"
+    desc: "Stop assist OCR capture"
     input_schema:
       type: object
       properties: {}
