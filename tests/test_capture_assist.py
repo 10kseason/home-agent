@@ -90,3 +90,21 @@ def test_main_announces_delay_and_progress(monkeypatch):
     assert messages[0].startswith("5초")
     assert messages[1] == "이미지를 OCR 중입니다.."
     assert sleeps == [5]
+
+
+def test_main_overlay_and_toast_on_text(monkeypatch):
+    messages = []
+    overlays = []
+    monkeypatch.setattr(capture_assist, "_notify", lambda msg: messages.append(msg))
+    monkeypatch.setattr(
+        capture_assist, "_overlay_toast", lambda msg, title="Assist-Capture": overlays.append((title, msg))
+    )
+    monkeypatch.setattr(capture_assist, "_post_event", lambda t, p, _prio=5: None)
+    monkeypatch.setattr(capture_assist, "_capture_screen", lambda cfg: Image.new("RGB", (1, 1)))
+    monkeypatch.setattr(capture_assist, "_run_ocr", lambda img, cfg: "hello")
+    monkeypatch.setattr(capture_assist.time, "sleep", lambda s: None)
+    monkeypatch.setattr(sys, "argv", ["capture_assist.py"])
+    monkeypatch.setattr(capture_assist, "speak", lambda text, lang="ko": None)
+    capture_assist.main()
+    assert ("Assist-Capture", "[Capture-assist] hello") in overlays
+    assert messages[-1] == "EasyOCR로 OCR했어요. Overlay 확인 해주세요."
