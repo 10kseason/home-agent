@@ -12,4 +12,5 @@ class CaptureAssistPlugin(BasePlugin):
         text = event.payload.get("text", "")
         text = text.replace("\u200b", "").strip()
         event.payload["text"] = text
-        logger.debug(f"[{self.name}] cleaned capture_assist.text")
+        await self.ctx.bus.publish(event)  # 재전송 → translator가 수신
+        logger.debug(f"[{self.name}] cleaned and republished capture_assist.text")

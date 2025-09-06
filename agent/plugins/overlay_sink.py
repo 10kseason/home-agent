@@ -41,7 +41,8 @@ class EnhancedOverlaySink(BasePlugin):
         "overlay.",
     ]
 
-    def __init__(self):
+    def __init__(self, ctx):
+        super().__init__(ctx)
         self.last_connection_check = 0
         self.connection_ok = True
         self.event_count = 0
