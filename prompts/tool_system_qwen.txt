@@ -5,6 +5,11 @@
 "보조"나 "어시스트"가 포함되지 않으면 보조용 툴을 호출하지 말라.
 "캡쳐해줘" 요청은 항상 ocr_capture를 사용하라.
 
+STT는 영상/음성의 영→한 자막 번역용 기본 STT 모듈이다.
+MicTrans는 사용자의 음성 명령 입력을 위한 보조 마이크 전사 도구다.
+OCR은 비전(VL) 모델 기반 OCR 번역을 수행한다.
+Capture Assist(ocr_capture/capture_assist_*)는 EasyOCR을 사용한 캡쳐 도구다.
+
 예시:
 <|user|>캡쳐해줘
 <|assistant|>{"tool_calls":[{"type":"function","function":{"name":"ocr_capture","arguments":"{}"}}]}

@@ -2,9 +2,13 @@
 
 This document summarizes the assistive modules and the command plugin that react to speech in accessibility mode.
 
-## MicTrans & Capture Assist
+## STT & OCR vs. Assist Tools
+- **STT** (`STT/assist.py` etc.) translates audio subtitles from English to Korean using the default STT pipeline.
+- **OCR** (`OCR/main.py` etc.) uses a vision model to extract and translate text from the screen.
+
+### Assist Tools
 - **MicTrans** (`Mic-trans-assist/mictrans.py`) captures microphone audio as voice input and posts `mictrans.text` events with `assist: true`. The overlay labels these transcripts as **Assist-MicTrans**.
-- **Capture Assist** (`Capture-assist/capture_assist.py`) waits five seconds, takes a screenshot, performs OCR, and emits `capture_assist.text` events marked with `assist: true`. The overlay displays the text as **Assist-Capture**.
+- **Capture Assist** (`Capture-assist/capture_assist.py`) waits five seconds, takes a screenshot, performs EasyOCR, and emits `capture_assist.text` events marked with `assist: true`. The overlay displays the text as **Assist-Capture**.
 
 ## Command Plugin
 `agent/plugins/assist_cmd_plugin.py` watches STT transcripts for the following Korean keywords and triggers the matching tools:
