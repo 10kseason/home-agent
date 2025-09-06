@@ -610,6 +610,13 @@ class MainWindow(QMainWindow):
                 **model_info,
             },
         )
+        
+        # 추가 (호환용)
+        _post_event("stt.text", {
+            "text": trans_clean or ocr_clean,
+            "translation": "",  # 있으면 넣고, 없으면 빈 문자열
+            "source": "HomeOCR"
+        })
 
         if self.cfg.get("notify_on_finish", True):
             _overlay_toast(
