@@ -50,7 +50,7 @@ tools: &id001
     cwd: D:/jip/home-agent/OCR
     no_console: true
     env:
-      AGENT_EVENT_URL: http://127.0.0.1:8350/event
+      AGENT_EVENT_URL: http://127.0.0.1:8765/event
   ocr.stop:
     kind: process_stop
     id: ocr
@@ -65,7 +65,7 @@ tools: &id001
     no_console: true
     shell: true
     env:
-      AGENT_EVENT_URL: http://127.0.0.1:8350/event
+      AGENT_EVENT_URL: http://127.0.0.1:8765/event
   stt.stop:
     kind: process_stop
     id: stt
@@ -81,7 +81,7 @@ tools: &id001
     cwd: D:/jip/home-agent/Mic-trans-assist
     no_console: true
     env:
-      AGENT_EVENT_URL: http://127.0.0.1:8350/event
+      AGENT_EVENT_URL: http://127.0.0.1:8765/event
   mictrans.stop:
     kind: process_stop
     id: mictrans
@@ -95,7 +95,7 @@ tools: &id001
     cwd: D:/jip/home-agent/Capture-assist
     no_console: true
     env:
-      AGENT_EVENT_URL: http://127.0.0.1:8350/event
+      AGENT_EVENT_URL: http://127.0.0.1:8765/event
   capture_assist.stop:
     kind: process_stop
     id: capture_assist
