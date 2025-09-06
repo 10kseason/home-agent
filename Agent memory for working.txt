@@ -71,3 +71,4 @@
 - Voice input and capture commands unified so MicTrans handles all voice input and Capture Assist performs screenshot OCR with a five-second delay in both modes; server, command router, tool gateway, and docs updated accordingly.
 - Capture Assist and MicTrans now emit `capture_assist.text` and `mictrans.text` events, translator plugin republishes translations via `translator.text` and overlay toasts. Tool list, docs, and AGENTS.md updated; broader assist integration still pending.
 - Overlay plugin endpoint now forwards plugin events to the agent server, removing the need for an Agent folder under Overlay.
+- MicTrans now emits mictrans.text events instead of stt.text so LLMs are triggered when using voice input; further wake-word and assist-mode integrations remain.
