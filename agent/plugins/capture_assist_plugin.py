@@ -12,5 +12,4 @@ class CaptureAssistPlugin(BasePlugin):
         text = event.payload.get("text", "")
         text = text.replace("\u200b", "").strip()
         event.payload["text"] = text
-        await self.ctx.bus.publish(event)
-        logger.debug(f"[{self.name}] cleaned and republished capture_assist.text")
+        logger.debug(f"[{self.name}] cleaned capture_assist.text")
