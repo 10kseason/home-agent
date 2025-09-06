@@ -91,3 +91,4 @@
 - Overlay toast handler now tracks recent messages to avoid speaking duplicate notifications; full dedup across all modules still pending.
 - Translator plugin now tolerates varied LLM response schemas (message/content, content, or text) so translations no longer return `None` when the structure differs. Further guardrails and richer translation features remain.
 - OCR, MicTrans, and Capture Assist plugins now avoid republishing cleaned events to prevent overlay duplication. Further wake-word handling and deep assist integration remain.
+- Translator plugin now collapses duplicate STT translations and skips overlay toasts for stt.* events, preventing repeated Korean output and ensuring OCR results continue to reach the overlay.

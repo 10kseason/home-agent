@@ -9,6 +9,18 @@ THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 def strip_think(text: str) -> str:
     return THINK_RE.sub("", text)
 
+
+def dedup_translation(text: str) -> str:
+    """Remove duplicated lines in translation output.
+
+    Some STT translations return the same sentence twice (often separated by a
+    newline). If two non-empty lines are identical, collapse them into a single
+    line so the overlay and TTS don't repeat the message."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(lines) == 2 and lines[0] == lines[1]:
+        return lines[0]
+    return text
+
 class TranslatorPlugin(BasePlugin):
     name = "translator"
     handles = [
@@ -133,11 +145,15 @@ class TranslatorPlugin(BasePlugin):
         if not translated:
             # 실패 시: 원문을 그대로 토스트/로그(앱은 멈추지 않게)
             fallback = (strip_think(text) or text)[:180]
-            self.ctx.sinks.write_log(f"[{self.name}] translate failed; pass-through: {fallback}",
-                                     self.ctx.config["sinks"].get("log_file"))
+            self.ctx.sinks.write_log(
+                f"[{self.name}] translate failed; pass-through: {fallback}",
+                self.ctx.config["sinks"].get("log_file"),
+            )
             if self.ctx.config["sinks"].get("toast", True):
                 self.ctx.sinks.toast_notify("번역 실패 (원문 표시)", fallback)
             return
+
+        translated = dedup_translation(translated)
 
         msg = f"[{self.name}] {event.type} → 번역 완료: {translated[:180]}..."
         self.ctx.sinks.write_log(msg, self.ctx.config["sinks"].get("log_file"))
@@ -145,11 +161,14 @@ class TranslatorPlugin(BasePlugin):
         await self.ctx.bus.publish(
             Event(type="translator.text", payload={"text": translated, "source": event.type})
         )
-        await self.ctx.bus.publish(
-            Event(
-                type="overlay.toast",
-                payload={"title": "번역 완료", "text": translated[:64]},
+
+        # STT 이벤트의 경우 overlay.toast를 생략하여 중복 안내/음성을 방지
+        if not event.type.startswith("stt."):
+            await self.ctx.bus.publish(
+                Event(
+                    type="overlay.toast",
+                    payload={"title": "번역 완료", "text": translated[:64]},
+                )
             )
-        )
-        if self.ctx.config["sinks"].get("toast", True):
-            self.ctx.sinks.toast_notify("번역 완료", translated[:64])
+            if self.ctx.config["sinks"].get("toast", True):
+                self.ctx.sinks.toast_notify("번역 완료", translated[:64])
