@@ -74,14 +74,8 @@ def _overlay_toast(message: str, title: str = "Assist-Capture") -> None:
 
 
 def _notify(msg: str) -> None:
-    """Display a toast notification locally and via overlay."""
+    """Display a toast notification via the overlay only."""
     _overlay_toast(msg)
-    try:
-        from agent.sinks import toast_notify
-
-        toast_notify("Assist-Capture", msg)
-    except Exception:
-        pass
 
 
 def _refine_with_jan(text: str) -> str:
