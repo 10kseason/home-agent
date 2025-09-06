@@ -85,9 +85,23 @@ class EnhancedEventHandler:
         self.plugin_manager = plugin_manager
         self.stats = EventStats()
         self.debug_mode = False
+        # 최근 표시한 토스트를 추적하여 중복 방지
+        self._recent_toasts: Dict[str, float] = {}
         
     def set_debug_mode(self, enabled: bool):
         self.debug_mode = enabled
+
+    def _is_duplicate_toast(self, text: str) -> bool:
+        """5초 내에 동일한 토스트가 이미 처리되었는지 확인"""
+        import time, hashlib
+        now = time.time()
+        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+        # 오래된 항목 정리
+        self._recent_toasts = {h: t for h, t in self._recent_toasts.items() if now - t <= 5}
+        if text_hash in self._recent_toasts:
+            return True
+        self._recent_toasts[text_hash] = now
+        return False
         
     def handle_event(self, event_type: str, payload: Dict[str, Any]) -> bool:
         """향상된 이벤트 처리 - 플러그인 우선"""
@@ -289,7 +303,7 @@ class EnhancedEventHandler:
         if event_type == "overlay.toast":
             title = payload.get("title", "알림")
             text = payload.get("text", "")
-            if text:
+            if text and not self._is_duplicate_toast(text):
                 self._emit_safe(f"📢 {title}", text)
                 return True
         return False

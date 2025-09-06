@@ -88,3 +88,4 @@
 - overlay_app now labels capture_assist.* events by prefix so Assist-Capture and VLM OCR results relay to the overlay; ROI highlighting and deeper OCR integration still pending.
 - Capture Assist and OCR now rely on overlay-only toasts and _post_event, avoiding agent server logs; advanced overlay integrations remain.
 - Overlay event handler now normalizes `stt.text`, `ocr.text`, and `capture_assist.text` events so OCR and STT results always append to the panel; richer source labeling and OCR-specific UI hooks still need work.
+- Overlay toast handler now tracks recent messages to avoid speaking duplicate notifications; full dedup across all modules still pending.
