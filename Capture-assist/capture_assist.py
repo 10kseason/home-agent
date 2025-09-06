@@ -138,6 +138,16 @@ def _clear_log(path: pathlib.Path | None = None) -> None:
         pass
 
 
+def _append_log(text: str, path: pathlib.Path | None = None) -> None:
+    """Append a timestamped entry to the capture assist log."""
+    log = path or LOG_PATH
+    try:
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(f"{time.time()}\t{text}\n")
+    except Exception:
+        pass
+
+
 @dataclass
 class OCRAssistConfig:
     """Configuration for assistive OCR capture."""
@@ -229,10 +239,10 @@ def main() -> None:
         )
         _overlay_toast(f"[Capture-assist] {text}")
         _notify("EasyOCR로 OCR했어요. Overlay 확인 해주세요.")
+        _append_log(text)
         print(text)
         if cfg.announce_text:
             speak(cfg.announce_text, lang="ko")
-    _clear_log()
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
     main()
