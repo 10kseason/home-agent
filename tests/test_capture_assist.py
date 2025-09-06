@@ -108,3 +108,19 @@ def test_main_overlay_and_toast_on_text(monkeypatch):
     capture_assist.main()
     assert ("Assist-Capture", "[Capture-assist] hello") in overlays
     assert messages[-1] == "EasyOCR로 OCR했어요. Overlay 확인 해주세요."
+
+
+def test_main_cleans_log(monkeypatch, tmp_path):
+    log_file = tmp_path / "capture_assist.log"
+    log_file.write_text("old", encoding="utf-8")
+    monkeypatch.setattr(capture_assist, "LOG_PATH", log_file)
+    monkeypatch.setattr(capture_assist, "_notify", lambda msg: None)
+    monkeypatch.setattr(capture_assist, "_overlay_toast", lambda msg, title="Assist-Capture": None)
+    monkeypatch.setattr(capture_assist, "_post_event", lambda t, p, _prio=5: None)
+    monkeypatch.setattr(capture_assist, "_capture_screen", lambda cfg: Image.new("RGB", (1, 1)))
+    monkeypatch.setattr(capture_assist, "_run_ocr", lambda img, cfg: "hello")
+    monkeypatch.setattr(capture_assist.time, "sleep", lambda s: None)
+    monkeypatch.setattr(sys, "argv", ["capture_assist.py"])
+    monkeypatch.setattr(capture_assist, "speak", lambda text, lang="ko": None)
+    capture_assist.main()
+    assert not log_file.exists()
