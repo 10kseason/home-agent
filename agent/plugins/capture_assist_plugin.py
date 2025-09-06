@@ -12,5 +12,6 @@ class CaptureAssistPlugin(BasePlugin):
         text = event.payload.get("text", "")
         text = text.replace("\u200b", "").strip()
         event.payload["text"] = text
-        await self.ctx.bus.publish(event)  # 재전송 → translator가 수신
-        logger.debug(f"[{self.name}] cleaned and republished capture_assist.text")
+        # 후속 플러그인에 동일 이벤트가 전달되므로 재전송은 필요 없다.
+        # 재전송 시 Overlay에 중복 표기가 발생하므로 제거한다.
+        logger.debug(f"[{self.name}] cleaned capture_assist.text")
