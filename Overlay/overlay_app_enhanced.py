@@ -111,7 +111,7 @@ class EnhancedEventHandler:
             if event_type.startswith("stt.") or event_type.startswith("mictrans."):
                 success = self._handle_stt(payload)
             elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
-                success = self._handle_ocr(payload)
+                success = self._handle_ocr(event_type, payload)
             elif event_type.startswith("web.search"):
                 success = self._handle_web_search(payload)
             elif event_type.startswith("llm.") or event_type.startswith("lm."):
@@ -199,24 +199,25 @@ class EnhancedEventHandler:
         self._emit_safe("🎤 STT", display_text)
         return True
     
-    def _handle_ocr(self, payload: Dict[str, Any]) -> bool:
+    def _handle_ocr(self, event_type: str, payload: Dict[str, Any]) -> bool:
         """OCR 이벤트 처리"""
         text = payload.get("text", "") or payload.get("ocr", "")
         if not text:
             return False
-            
+
         text = text.strip()
         display_text = text
-        
+
         bbox = payload.get("bbox", [])
         if bbox and len(bbox) >= 2:
             display_text += f" @({bbox[0]:.0f},{bbox[1]:.0f})"
-        
+
         confidence = payload.get("confidence", 0)
         if confidence > 0:
             display_text += f" ({confidence:.0%})"
-            
-        self._emit_safe("👁️ OCR", display_text)
+
+        label = "Assist-Capture" if event_type.startswith("capture_assist.") or payload.get("assist") else "👁️ OCR"
+        self._emit_safe(label, display_text)
         return True
     
     def _handle_web_search(self, payload: Dict[str, Any]) -> bool:

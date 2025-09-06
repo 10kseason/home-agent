@@ -74,3 +74,4 @@
 - MicTrans now emits mictrans.text events instead of stt.text so LLMs are triggered when using voice input; further wake-word and assist-mode integrations remain.
 - Capture Assist now overlays EasyOCR results prefixed with "[Capture-assist]" and shows a toast "EasyOCR로 OCR했어요. Overlay 확인 해주세요." when sending results; deeper assist integration remains.
 - Capture Assist logs now record each OCR result; the agent server prunes entries older than one minute and clears the log on shutdown. Further capture assist logging features remain.
+- Overlay now labels capture_assist.text events as "Assist-Capture" so OCR results appear in the overlay window; further integration like ROI highlighting remains.
