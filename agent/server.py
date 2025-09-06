@@ -164,6 +164,9 @@ def create_app(ctx, plugins=None):
 
             async def _toast_handler(ev):
                 payload = ev.payload or {}
+                # avoid infinite loops if we re-publish the toast event
+                if payload.get("_relay"):
+                    return
                 title = payload.get("title", "")
                 text = payload.get("text", "")
                 try:
@@ -184,6 +187,18 @@ def create_app(ctx, plugins=None):
                 except Exception as e:
                     logger.debug(f"[toast] overlay send failed: {e}")
                 logger.info(f"[toast] {title}: {text}")
+                # relay event on the bus so other subscribers (e.g., overlay sink)
+                # can also react and display the message
+                try:
+                    await ctx.bus.publish(
+                        Event(
+                            type="overlay.toast",
+                            payload={**payload, "_relay": True},
+                            priority=getattr(ev, "priority", 5),
+                        )
+                    )
+                except Exception as e:
+                    logger.debug(f"[toast] relay failed: {e}")
 
             ctx.bus.subscribe("overlay.toast", _toast_handler)
             app.state._plugin_unsubs.append(("overlay.toast", _toast_handler))

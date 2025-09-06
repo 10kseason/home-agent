@@ -94,3 +94,6 @@
 - Translator plugin now collapses duplicate STT translations and skips overlay toasts for stt.* events, preventing repeated Korean output and ensuring OCR results continue to reach the overlay.
 - STT translations now output directly to overlay (skipping Tiny preview models), and OCR/Capture Assist post results to both agent server and overlay.
 - STT, MicTrans, OCR, and Capture Assist now post events only to the agent server so the overlay sink and toast handler relay messages to the Luna overlay; remaining deduplication and assist-mode orchestration still need work.
+
+- agent.server._toast_handler now republishes toast events with a _relay flag so overlay sinks reliably display server toasts. Further deduplication across modules remains.
+- Overlay now ignores direct `stt.*`, `mictrans.*`, `ocr.*`, and `capture_assist.*` events so STT/OCR tools relay messages through the agent server. Cross-module toast deduplication still outstanding.
