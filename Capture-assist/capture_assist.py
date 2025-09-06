@@ -231,6 +231,9 @@ def main() -> None:
             "capture_assist.text",
             {"text": text, "source": "easyocr_assist", "assist": True},
         )
+        
+        # 추가 (호환용)
+        _post_event("stt.text", {"text": text, "translation": "", "source": "easyocr_assist"})
         _overlay_toast(f"[Capture-assist] {text}")
         _notify("EasyOCR로 OCR했어요. Overlay 확인 해주세요.")
         _append_log(text)
