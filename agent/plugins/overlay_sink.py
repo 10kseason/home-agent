@@ -153,20 +153,24 @@ class EnhancedOverlaySink(BasePlugin):
             }
         }
 
-    def _format_ocr_event(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _format_ocr_event(self, event_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """OCR 이벤트 포맷팅"""
         text = payload.get("text", "") or payload.get("ocr", "")
         bbox = payload.get("bbox", [])
         confidence = payload.get("confidence", 0)
-        
+
         display_text = self._truncate_text(text)
-        
+
         # 좌표 정보가 있으면 추가
         if bbox and len(bbox) >= 4:
             display_text += f" 📍({bbox[0]:.0f},{bbox[1]:.0f})"
-        
+
+        evt_type = (
+            "capture_assist.result" if event_type.startswith("capture_assist.") else "ocr.result"
+        )
+
         return {
-            "type": "ocr.result",
+            "type": evt_type,
             "payload": {
                 "text": display_text,
                 "bbox": bbox,
@@ -263,7 +267,7 @@ class EnhancedOverlaySink(BasePlugin):
             if event_type.startswith("stt.") or event_type.startswith("mictrans."):
                 formatted_event = self._format_stt_event(payload)
             elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
-                formatted_event = self._format_ocr_event(payload)
+                formatted_event = self._format_ocr_event(event_type, payload)
             elif event_type.startswith("llm.") or event_type.startswith("lm."):
                 formatted_event = self._format_llm_event(payload)
             elif event_type.startswith("web.search"):
