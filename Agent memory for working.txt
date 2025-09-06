@@ -73,3 +73,4 @@
 - Overlay plugin endpoint now forwards plugin events to the agent server, removing the need for an Agent folder under Overlay.
 - MicTrans now emits mictrans.text events instead of stt.text so LLMs are triggered when using voice input; further wake-word and assist-mode integrations remain.
 - Capture Assist now overlays EasyOCR results prefixed with "[Capture-assist]" and shows a toast "EasyOCR로 OCR했어요. Overlay 확인 해주세요." when sending results; deeper assist integration remains.
+- Capture Assist now removes its log file after posting overlay output so logs stay clean; further capture assist features remain.

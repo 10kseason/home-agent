@@ -45,6 +45,8 @@ _EVENT_URL = (
 )
 _EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
+LOG_PATH = pathlib.Path(__file__).with_name("capture_assist.log")
+
 
 def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
     try:
@@ -124,6 +126,16 @@ def _refine_with_jan(text: str) -> str:
         return (data["choices"][0]["message"]["content"] or "").strip() or text
     except Exception:
         return text
+
+
+def _clear_log(path: pathlib.Path | None = None) -> None:
+    """Remove the capture assist log file if it exists."""
+    log = path or LOG_PATH
+    try:
+        if log.exists():
+            log.unlink()
+    except Exception:
+        pass
 
 
 @dataclass
@@ -220,7 +232,7 @@ def main() -> None:
         print(text)
         if cfg.announce_text:
             speak(cfg.announce_text, lang="ko")
-
+    _clear_log()
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
     main()
