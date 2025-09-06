@@ -75,14 +75,13 @@ except Exception:  # pragma: no cover - script execution
 _EVENT_URL = (
     os.environ.get("EVENT_URL")
     or os.environ.get("AGENT_EVENT_URL")
-    or os.environ.get("OVERLAY_EVENT_URL")
     or "http://127.0.0.1:8350/event"
 )
 _EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
 
 def _post_event(_type: str, _payload: dict, _prio: int = 5) -> None:
-    """Send event to overlay or agent bus."""
+    """Send event to the agent bus."""
     try:
         headers = {"Content-Type": "application/json"}
         if _EVENT_KEY:
