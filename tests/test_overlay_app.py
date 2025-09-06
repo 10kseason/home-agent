@@ -15,3 +15,19 @@ def test_ocr_event_labeled_ocr(monkeypatch):
     handler._emit_safe = lambda who, msg: emitted.append((who, msg))
     assert handler.handle_event("ocr.result", {"text": "hola"}) is True
     assert emitted == [("👁️ OCR", "hola")]
+
+
+def test_raw_text_events(monkeypatch):
+    handler = EventHandler(window=None)
+    emitted = []
+    handler._emit_safe = lambda who, msg: emitted.append((who, msg))
+
+    assert handler.handle_event("stt.text", {"text": "hi"}) is True
+    assert handler.handle_event("ocr.text", {"text": "scan"}) is True
+    assert handler.handle_event("capture_assist.text", {"text": "cap", "source": "easy"}) is True
+
+    assert emitted == [
+        ("stt", "hi"),
+        ("ocr", "scan"),
+        ("easy", "cap"),
+    ]

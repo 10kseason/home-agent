@@ -99,7 +99,16 @@ class EventHandler:
             
             if self.debug_mode:
                 logger.info(f"[event] Processing {event_type}: {payload}")
-            
+
+            # 공통 텍스트 이벤트 정규화
+            if event_type in ("stt.text", "ocr.text", "capture_assist.text"):
+                text = payload.get("text") or payload.get("translation") or ""
+                if text:
+                    source = payload.get("source", event_type.split('.')[0])
+                    self._emit_safe(source, text)
+                    return True
+                return False
+
             # 이벤트 타입별 처리
             success = False
             if event_type.startswith("stt.") or event_type.startswith("mictrans."):
