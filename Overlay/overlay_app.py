@@ -462,7 +462,7 @@ class EventHandler:
             if title in filtered_titles:
                 return False
                 
-            if text:
+            if text and not self._is_duplicate_message(text):
                 self._emit_safe(f"📢 {title}", text)
                 return True
         return False
