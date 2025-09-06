@@ -21,7 +21,12 @@ import numpy as np
 from PIL import Image
 from mss import mss
 import requests as _rq
-from tools.tts_espeak import speak
+# eSpeak TTS (optional)
+try:
+    from tools.tts_espeak import speak
+except Exception:  # pragma: no cover - optional dependency
+    def speak(*args, **kwargs):
+        return None
 
 # Backwards-compatibility alias for tests expecting module-level `requests`
 requests = _rq
@@ -206,7 +211,12 @@ def main() -> None:
     text = _run_ocr(img, cfg)
     text = _refine_with_jan(text)
     if text:
-        _post_event("capture_assist.text", {"text": text, "source": "easyocr_assist", "assist": True})
+        _post_event(
+            "capture_assist.text",
+            {"text": text, "source": "easyocr_assist", "assist": True},
+        )
+        _overlay_toast(f"[Capture-assist] {text}")
+        _notify("EasyOCR로 OCR했어요. Overlay 확인 해주세요.")
         print(text)
         if cfg.announce_text:
             speak(cfg.announce_text, lang="ko")
