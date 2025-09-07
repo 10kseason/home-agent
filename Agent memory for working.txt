@@ -97,3 +97,6 @@
 
 - agent.server._toast_handler now republishes toast events with a _relay flag so overlay sinks reliably display server toasts. Further deduplication across modules remains.
 - Overlay now ignores direct `stt.*`, `mictrans.*`, `ocr.*`, and `capture_assist.*` events so STT/OCR tools relay messages through the agent server. Cross-module toast deduplication still outstanding.
+
+- overlay_sink now forwards relayed overlay.toast events from agent.server._toast_handler so server toasts appear once in the overlay; cross-module deduplication still pending.
+- Overlay sink now relays server toast messages while a new overlay toast plugin shows relayed events as Windows notifications.

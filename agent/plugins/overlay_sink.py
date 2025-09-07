@@ -271,10 +271,13 @@ class EnhancedOverlaySink(BasePlugin):
             elif event_type.startswith("web.search"):
                 formatted_event = self._format_search_event(payload)
             elif event_type.startswith("overlay."):
-                # 직접 전달 (토스트 등)
+                # 토스트 등 overlay.* 이벤트는 서버의 _toast_handler가
+                # _relay 플래그를 붙여 재게시한 것만 전달하여 중복을 방지
+                if event_type == "overlay.toast" and not payload.get("_relay"):
+                    return
                 formatted_event = {
                     "type": event_type,
-                    "payload": payload
+                    "payload": payload,
                 }
             
             if not formatted_event:
