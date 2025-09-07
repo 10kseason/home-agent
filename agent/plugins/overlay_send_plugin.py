@@ -1,18 +1,7 @@
-from __future__ import annotations
-
-"""
-Overlay send plugin v2: relay to BOTH toast and overlay message feed.
-
-- Listens for `overlay.send`.
-- Re-emits:
-  1) `overlay.toast` with `_relay=True` for Windows toast
-  2) `overlay.message` with `_relay=True` for Luna Overlay message feed
-"""
-
-import time
-from loguru import logger
 from agent.schemas import Event
 from . import BasePlugin
+from loguru import logger
+import time
 
 
 class OverlaySendPlugin(BasePlugin):
@@ -20,7 +9,6 @@ class OverlaySendPlugin(BasePlugin):
     handles = ["overlay.send"]
 
     def _normalize(self, payload: dict) -> dict:
-        """Normalize fields so both toast and overlay message have what they need."""
         p = dict(payload or {})
         p.setdefault("_relay", True)
         p.setdefault("title", p.get("title", "") or p.get("heading", "") or "")
@@ -38,24 +26,18 @@ class OverlaySendPlugin(BasePlugin):
 
         norm = self._normalize(payload)
 
-        # 1) 윈도우 토스트용 (sink가 /overlay/event 로 보냄)
-        await self.ctx.bus.publish(
-            Event(
-                type="overlay.toast",
-                payload=norm,
-                priority=getattr(event, "priority", 5),
-                source=getattr(event, "source", "agent"),
-            )
-        )
+        # 1) 윈도우 토스트 라인
+        await self.ctx.bus.publish(Event(
+            type="overlay.toast",
+            payload=norm,
+            priority=getattr(event, "priority", 5),
+            source=getattr(event, "source", "agent"),
+        ))
 
-        # 2) 오버레이 메시지 피드용 (sink가 /event 로 보냄)
-        await self.ctx.bus.publish(
-            Event(
-                type="overlay.message",
-                payload=norm,
-                priority=getattr(event, "priority", 5),
-                source=getattr(event, "source", "agent"),
-            )
-        )
-
-        logger.debug("[overlay_send] relayed to overlay.toast and overlay.message")
+        # 2) 오버레이 메시지 피드 라인
+        await self.ctx.bus.publish(Event(
+            type="overlay.message",
+            payload=norm,
+            priority=getattr(event, "priority", 5),
+            source=getattr(event, "source", "agent"),
+        ))

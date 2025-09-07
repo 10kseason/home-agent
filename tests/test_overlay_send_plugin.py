@@ -17,9 +17,11 @@ def test_overlay_send_plugin_republishes(monkeypatch):
 
     asyncio.run(plugin.handle(Event(type="overlay.send", payload={"title": "T", "text": "hi"})))
 
-    assert len(published) == 1
-    e = published[0]
-    assert e.type == "overlay.toast"
-    assert e.payload["title"] == "T"
-    assert e.payload["text"] == "hi"
-    assert e.payload["_relay"] is True
+    assert len(published) == 2
+    toast, message = published
+    assert toast.type == "overlay.toast"
+    assert message.type == "overlay.message"
+    for e in (toast, message):
+        assert e.payload["title"] == "T"
+        assert e.payload["text"] == "hi"
+        assert e.payload["_relay"] is True
