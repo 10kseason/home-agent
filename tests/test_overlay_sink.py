@@ -1,5 +1,9 @@
 import asyncio
-from agent.plugins.overlay_sink import EnhancedOverlaySink
+from agent.plugins.overlay_sink import (
+    EnhancedOverlaySink,
+    OVERLAY_TOAST_URL,
+    OVERLAY_EVENT_URL,
+)
 from agent.schemas import Event
 
 
@@ -58,7 +62,7 @@ def test_ocr_event_forwarded(monkeypatch):
     assert inner['text'] == 'generic'
 
 
-def test_overlay_toast_relay(monkeypatch):
+def test_overlay_routing(monkeypatch):
     sink = EnhancedOverlaySink()
     captured = []
 
@@ -73,9 +77,15 @@ def test_overlay_toast_relay(monkeypatch):
     asyncio.run(sink.handle(event))
     assert captured == []
 
-    # relayed toast should be forwarded to overlay
+    # relayed toast should go to toast URL
     event2 = Event(type="overlay.toast", payload={"title": "T", "text": "hi", "_relay": True})
     asyncio.run(sink.handle(event2))
 
-    assert captured and captured[0][1]["type"] == "overlay.toast"
-    assert captured[0][1]["payload"]["title"] == "T"
+    # overlay.message should go to event URL
+    event3 = Event(type="overlay.message", payload={"title": "M", "text": "hey", "_relay": True})
+    asyncio.run(sink.handle(event3))
+
+    assert captured[0][0] == OVERLAY_TOAST_URL
+    assert captured[0][1]["type"] == "overlay.toast"
+    assert captured[1][0] == OVERLAY_EVENT_URL
+    assert captured[1][1]["type"] == "overlay.message"
