@@ -100,3 +100,4 @@
 
 - overlay_sink now forwards relayed overlay.toast events from agent.server._toast_handler so server toasts appear once in the overlay; cross-module deduplication still pending.
 - Overlay sink now relays server toast messages while a new overlay toast plugin shows relayed events as Windows notifications.
+- Added overlay send plugin so overlay.send events republish as relayed overlay.toast messages, allowing Luna Overlay to display messages while overlay toasts show Windows notifications; cross-module deduplication still pending.
