@@ -292,7 +292,15 @@ class EnhancedOverlaySink(BasePlugin):
             })
             
             # Overlay로 전송
-            target_url = OVERLAY_TOAST_URL if event_type.startswith("overlay.") else OVERLAY_EVENT_URL
+            if event_type == "overlay.toast":
+                target_url = OVERLAY_TOAST_URL
+            elif event_type.startswith("overlay."):
+                # overlay.message, overlay.whatever 등은 메시지 피드로
+                target_url = OVERLAY_EVENT_URL
+            else:
+                target_url = OVERLAY_EVENT_URL
+            if event_type == "overlay.toast" and not payload.get("_relay"):
+                return
             success = await self._post_with_retry(target_url, formatted_event)
             
             if success:
