@@ -56,3 +56,26 @@ def test_ocr_event_forwarded(monkeypatch):
     assert captured['payload']['type'] == 'ocr.result'
     inner = captured['payload']['payload']
     assert inner['text'] == 'generic'
+
+
+def test_overlay_toast_relay(monkeypatch):
+    sink = EnhancedOverlaySink()
+    captured = []
+
+    async def fake_post(url, payload):
+        captured.append((url, payload))
+        return True
+
+    sink._post_with_retry = fake_post  # type: ignore
+
+    # original toast without _relay should be ignored
+    event = Event(type="overlay.toast", payload={"title": "T", "text": "hi"})
+    asyncio.run(sink.handle(event))
+    assert captured == []
+
+    # relayed toast should be forwarded to overlay
+    event2 = Event(type="overlay.toast", payload={"title": "T", "text": "hi", "_relay": True})
+    asyncio.run(sink.handle(event2))
+
+    assert captured and captured[0][1]["type"] == "overlay.toast"
+    assert captured[0][1]["payload"]["title"] == "T"

@@ -6,11 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 from .schemas import Event, Result, PluginEventIn
-try:
-    import httpx
-except Exception:  # pragma: no cover - optional dependency
-    httpx = None
-import requests
 
 CAPTURE_LOG_PATH = Path(__file__).resolve().parents[1] / "Capture-assist" / "capture_assist.log"
 
@@ -169,26 +164,8 @@ def create_app(ctx, plugins=None):
                     return
                 title = payload.get("title", "")
                 text = payload.get("text", "")
-                try:
-                    if httpx:
-                        async with httpx.AsyncClient(timeout=2.0) as client:
-                            await client.post(
-                                OVERLAY_TOAST_URL,
-                                json={"type": "overlay.toast", "payload": payload},
-                            )
-                    else:
-                        def _sync_post():
-                            requests.post(
-                                OVERLAY_TOAST_URL,
-                                json={"type": "overlay.toast", "payload": payload},
-                                timeout=2.0,
-                            )
-                        await asyncio.to_thread(_sync_post)
-                except Exception as e:
-                    logger.debug(f"[toast] overlay send failed: {e}")
                 logger.info(f"[toast] {title}: {text}")
-                # relay event on the bus so other subscribers (e.g., overlay sink)
-                # can also react and display the message
+                # relay event on the bus so overlay sinks can forward the message
                 try:
                     await ctx.bus.publish(
                         Event(

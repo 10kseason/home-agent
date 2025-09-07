@@ -16,11 +16,7 @@ async def dispatch_all(bus: EventBus):
                     await h(e)
 
 
-def test_toast_handler_relays_to_bus(monkeypatch):
-    # prevent actual HTTP requests
-    monkeypatch.setattr(server, "httpx", None)
-    monkeypatch.setattr(server, "requests", SimpleNamespace(post=lambda *a, **k: None))
-
+def test_toast_handler_relays_to_bus():
     ctx = SimpleNamespace(config={}, bus=EventBus(dedup_window=0), assist_mode=False)
     app = create_app(ctx, plugins=[])
     relayed = []
