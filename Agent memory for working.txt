@@ -120,3 +120,4 @@
 
 - Overlay send plugin now republishes overlay.send as both overlay.toast and overlay.message events so messages appear in the overlay feed while toasts trigger Windows notifications; cross-module deduplication still pending.
 - Overlay sink now sends overlay.toast to the toast endpoint and other overlay.* events to the main event feed; further overlay/message routing features remain.
+- Capture log worker now uses a stop event so agent/server.py avoids a hard infinite loop; further capture logging polish remains.
