@@ -219,8 +219,8 @@ def main() -> None:
     if cfg.event_key:
         _EVENT_KEY = cfg.event_key
 
-    _notify("5초 뒤 촬영 합니다")
-    time.sleep(5)
+    # 즉시 촬영 (지연 없이 바로 캡처)
+    _notify("촬영합니다")
     img = _capture_screen(cfg)
     _notify("이미지를 OCR 중입니다..")
     text = _run_ocr(img, cfg)

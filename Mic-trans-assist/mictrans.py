@@ -180,6 +180,7 @@ class AssistConfig:
     )
     wake_word: Optional[str] = None
     llm: Dict[str, str] = field(default_factory=dict)
+    enable_detected: bool = True  # default on; can be disabled via config/env
 
 
 def load_config(path: str | None = None) -> AssistConfig:
@@ -207,6 +208,10 @@ def load_config(path: str | None = None) -> AssistConfig:
             cfg_data["detection"] = assist["detection"]
         if "llm" in raw:
             cfg_data["llm"] = raw["llm"]
+        # Optional flag to enable/disable command detection emission
+        if "assist" in raw and isinstance(raw["assist"], dict):
+            if "enable_detected" in raw["assist"]:
+                cfg_data["enable_detected"] = bool(raw["assist"]["enable_detected"])
     return AssistConfig(**cfg_data)
 
 
@@ -298,12 +303,8 @@ class AssistTranscriber:
             if self.ui:
                 self.ui.push(text)
             cmd = detect_command(text, self.cfg)
-            if cmd:
-                self.event_func(
-                    "cmd.detected",
-                    {"cmd": cmd, "ts": time.time()},
-                    1,
-                )
+            if cmd and self.cfg.enable_detected:
+                self.event_func("cmd.detected", {"cmd": cmd, "ts": time.time()}, 1)
                 if cmd == "assist":
                     prompt = text
                     for syn in self.cfg.commands.get("assist", []):
@@ -343,6 +344,7 @@ class SubtitleUI:
         self.queue: "queue.Queue[str]" = queue.Queue()
         self.root = None
         self.chat_box = None
+        self._on_close = None
         if self.enabled:
             self.root = tk.Tk()
             self.root.title("Assist-MicTrans")
@@ -354,6 +356,10 @@ class SubtitleUI:
             )
             self.chat_box.pack(fill="both", expand=True, padx=16, pady=16)
             self.chat_box.configure(state="disabled")
+            try:
+                self.root.protocol("WM_DELETE_WINDOW", self._on_close_internal)
+            except Exception:
+                pass
             self.root.after(50, self._poll)
 
     def _poll(self):
@@ -382,6 +388,18 @@ class SubtitleUI:
                 while True:
                     time.sleep(0.1)
             except KeyboardInterrupt:
+                pass
+    def set_on_close(self, cb):
+        self._on_close = cb
+    def _on_close_internal(self):
+        try:
+            if callable(self._on_close):
+                self._on_close()
+        finally:
+            try:
+                if self.root:
+                    self.root.destroy()
+            except Exception:
                 pass
 
 
@@ -461,11 +479,24 @@ def run(cfg: AssistConfig) -> None:
 
     blocksize = int(cfg.sample_rate * (cfg.block_ms / 1000))
 
+    stop_event = threading.Event()
+
+    def _request_stop(reason: str = "ui_close"):
+        try:
+            _post_event("mictrans.stop", {"reason": reason, "ts": time.time()})
+        except Exception:
+            pass
+        stop_event.set()
+
     def worker():  # pragma: no cover - realtime loop
         buf = bytearray()
         print("[assist] Listening...")
-        while True:
-            buf.extend(q.get())
+        while not stop_event.is_set():
+            try:
+                chunk = q.get(timeout=0.5)
+            except Exception:
+                continue
+            buf.extend(chunk)
             if len(buf) >= blocksize * 2:
                 transcriber.transcribe(bytes(buf))
                 buf.clear()
@@ -480,9 +511,13 @@ def run(cfg: AssistConfig) -> None:
     ):
         _notify_listening()
         _post_event("mictrans.started", {"ts": time.time()})
-        threading.Timer(600, _notify_listening).start()
+        t = threading.Timer(600, _notify_listening)
+        t.daemon = True
+        t.start()
+        ui.set_on_close(_request_stop)
         threading.Thread(target=worker, daemon=True).start()
         ui.loop()
+        _request_stop("ui_exit")
 
 
 def main() -> None:

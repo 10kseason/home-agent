@@ -5,8 +5,10 @@ class BasePlugin:
     name: str = "base"
     handles: List[str] = []  # event type prefixes this plugin can handle
 
-    def __init__(self, ctx):
-        self.ctx = ctx  # access to bus, policy, config, sinks, http client
+    def __init__(self, ctx=None):
+        # ctx is optional to ease isolated unit tests. In production it is
+        # provided by the agent and exposes bus, policy, config, sinks, etc.
+        self.ctx = ctx
 
     async def handle(self, event):
         raise NotImplementedError

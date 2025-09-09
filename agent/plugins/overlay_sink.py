@@ -35,13 +35,14 @@ class EnhancedOverlaySink(BasePlugin):
         "mictrans.",
         "ocr.",
         "capture_assist.",
+        "translator.",
         "llm.",
         "lm.",
         "web.search",
         "overlay.",
     ]
 
-    def __init__(self, ctx):
+    def __init__(self, ctx=None):
         super().__init__(ctx)
         self.last_connection_check = 0
         self.connection_ok = True
@@ -50,7 +51,8 @@ class EnhancedOverlaySink(BasePlugin):
     async def _test_connection(self) -> bool:
         """Overlay 연결 상태 확인"""
         now = time.time()
-        if now - self.last_connection_check < 30:  # 30초마다 체크
+        # Check more frequently to recover quickly when overlay starts later
+        if now - self.last_connection_check < 5:  # 5초마다 체크
             return self.connection_ok
         
         try:
@@ -75,10 +77,12 @@ class EnhancedOverlaySink(BasePlugin):
             return False
 
     async def _post_with_retry(self, url: str, payload: Dict[str, Any]) -> bool:
-        """재시도 로직이 있는 HTTP POST"""
-        if not await self._test_connection():
-            logger.debug(f"[overlay_sink] Skipping post - overlay not available")
-            return False
+        """재시도 로직이 있는 HTTP POST
+
+        연결 테스트가 최근 실패했더라도, 최초 1회는 낙관적 전송을 시도하여
+        오버레이가 늦게 켜진 경우에도 즉시 회복되도록 한다.
+        """
+        tested_ok = await self._test_connection()
 
         for attempt in range(RETRY_ATTEMPTS + 1):
             try:
@@ -94,6 +98,9 @@ class EnhancedOverlaySink(BasePlugin):
                 
                 if success:
                     self.event_count += 1
+                    # Mark connection healthy on success
+                    self.connection_ok = True
+                    self.last_connection_check = time.time()
                     if self.event_count % 50 == 0:  # 50개마다 로그
                         logger.info(f"[overlay_sink] Sent {self.event_count} events to overlay")
                     return True
@@ -266,6 +273,17 @@ class EnhancedOverlaySink(BasePlugin):
                 formatted_event = self._format_stt_event(payload)
             elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
                 formatted_event = self._format_ocr_event(event_type, payload)
+            elif event_type.startswith("translator."):
+                # 번역 결과는 간단히 통과(텍스트만 정리)
+                txt = (payload or {}).get("text", "")
+                src = (payload or {}).get("source", "")
+                formatted_event = {
+                    "type": event_type,
+                    "payload": {
+                        "text": self._truncate_text(txt, max_len=300),
+                        "source": src,
+                    },
+                }
             elif event_type.startswith("llm.") or event_type.startswith("lm."):
                 formatted_event = self._format_llm_event(payload)
             elif event_type.startswith("web.search"):

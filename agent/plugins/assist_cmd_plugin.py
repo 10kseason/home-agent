@@ -38,6 +38,16 @@ class AssistCommandPlugin(BasePlugin):
         )
 
     async def handle(self, event):
+        # 전역 스위치: 서버 라우터가 cmd.detected를 처리하도록 설정된 경우 플러그인은 무시
+        cmd_cfg = (self.ctx.config.get("commands") or {}) if self.ctx and getattr(self, 'ctx', None) else {}
+        if cmd_cfg.get("router_handle_detected", False):
+            return
+        # 전역 비활성화 스위치 (기본 on; config에서 false면 꺼짐)
+        enable_detected = cmd_cfg.get("enable_detected")
+        if enable_detected is None:
+            enable_detected = True  # 테스트 호환을 위해 기본 on
+        if not enable_detected:
+            return
         if event.type == "ocr.text":
             # Track latest OCR output for summarize/translate commands
             self.last_ocr = event.payload.get("text", "")
@@ -61,7 +71,13 @@ class AssistCommandPlugin(BasePlugin):
 
         if cmd == "capture":
             await self._toast("📸 캡처")
-            await self.ctx.bus.publish(Event(type="capture_assist.start", payload={}))
+            import time as _t
+            await self.ctx.bus.publish(Event(
+                type="capture_assist.start",
+                payload={"reason": "voice_cmd", "ts": _t.time()},
+                priority=2,
+                source="assist_cmd",
+            ))
 
         elif cmd == "summarize":
             if not self.last_ocr:
@@ -283,4 +299,3 @@ class AssistCommandPlugin(BasePlugin):
         except Exception as e:
             logger.error(f"[assist_command] summarize+translate error: {e}")
             return None
-

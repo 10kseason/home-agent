@@ -158,9 +158,17 @@ class TranslatorPlugin(BasePlugin):
         msg = f"[{self.name}] {event.type} → 번역 완료: {translated[:180]}..."
         self.ctx.sinks.write_log(msg, self.ctx.config["sinks"].get("log_file"))
         event.payload["translation"] = translated
-        await self.ctx.bus.publish(
-            Event(type="translator.text", payload={"text": translated, "source": event.type})
-        )
+
+        # Translator Text 이벤트 발행 여부 (기본 off)
+        emit_cfg = (self.ctx.config.get("translate") or {}).get("emit_text_event")
+        if emit_cfg is None:
+            emit = False  # 기본 비활성화
+        else:
+            emit = bool(emit_cfg)
+        if emit:
+            await self.ctx.bus.publish(
+                Event(type="translator.text", payload={"text": translated, "source": event.type})
+            )
 
         # STT 이벤트의 경우 overlay.toast를 생략하여 중복 안내/음성을 방지
         if not event.type.startswith("stt."):

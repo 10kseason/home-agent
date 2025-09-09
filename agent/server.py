@@ -1,4 +1,4 @@
-import asyncio, os, sys, subprocess, platform, time
+import asyncio, os, sys, subprocess, platform, time, json, yaml
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends, Header, APIRouter
@@ -7,11 +7,29 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from .schemas import Event, Result, PluginEventIn
 
+# --- simple TTL-based dedup to avoid event loops ---
+_DEDUP = {}
+
+def _seen_recent(key: str, ttl: float = 3.0) -> bool:
+    import time as _t
+    now = _t.time()
+    # purge occasionally
+    if len(_DEDUP) > 2048:
+        for k, until in list(_DEDUP.items())[:1024]:
+            if until <= now:
+                _DEDUP.pop(k, None)
+    until = _DEDUP.get(key, 0.0)
+    if until > now:
+        return True
+    _DEDUP[key] = now + ttl
+    return False
+
 CAPTURE_LOG_PATH = Path(__file__).resolve().parents[1] / "Capture-assist" / "capture_assist.log"
 
 OVERLAY_HOST = os.environ.get("OVERLAY_HOST", "127.0.0.1")
 OVERLAY_PORT = int(os.environ.get("OVERLAY_PORT", "8350"))
 OVERLAY_BASE = f"http://{OVERLAY_HOST}:{OVERLAY_PORT}"
+OVERLAY_EVENT_URL = os.environ.get("OVERLAY_EVENT_URL", f"{OVERLAY_BASE}/event")
 OVERLAY_TOAST_URL = os.environ.get("OVERLAY_TOAST_URL", f"{OVERLAY_BASE}/overlay/event")
 
 
@@ -48,27 +66,54 @@ async def _capture_log_worker():
         _prune_capture_log()
 
 def _spawn_overlay(cfg):
+    """Launch the Overlay using pathlib-based resolution.
+
+    If absolute paths are not provided, fall back to repository-relative
+    defaults so the config can remain portable.
+    """
     ov = (cfg or {}).get("overlay", {}) or {}
     if not ov.get("enable"):
         logger.info("[overlay] disabled")
         return None
 
-    py = ov.get("python") or sys.executable
+    repo_root = Path(__file__).resolve().parents[1]
+    # Prefer overlay.python, fallback to top-level cfg['python'], then sys.executable
+    py = ov.get("python") or (cfg.get("python") if isinstance(cfg, dict) else None) or sys.executable
     script = ov.get("script")
-    if not script or not os.path.exists(script):
-        logger.warning("[overlay] script not set or not found; skip auto-launch")
+    if script:
+        sp = Path(script)
+        if not sp.is_absolute():
+            sp = repo_root / sp
+    else:
+        sp = repo_root / "Overlay" / "overlay_app.py"
+    if not sp.exists():
+        # try cache
+        try:
+            cache = _load_paths_cache()
+            csp = cache.get("overlay_script")
+            if csp:
+                csp = Path(csp)
+                if csp.exists():
+                    sp = csp
+        except Exception:
+            pass
+    if not sp.exists():
+        logger.warning(f"[overlay] script not found at {sp}; skip auto-launch")
         return None
 
-    cwd = ov.get("cwd") or os.path.dirname(script)
+    cwd = ov.get("cwd")
+    cw = Path(cwd) if cwd else sp.parent
+    if not cw.is_absolute():
+        cw = (repo_root / cw).resolve()
     args = ov.get("args", []) or []
 
     creationflags = 0
     if platform.system() == "Windows" and ov.get("no_console", False):
         creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-    cmd = [py, script, *args]
+    cmd = [py, str(sp), *args]
     try:
-        proc = subprocess.Popen(cmd, cwd=cwd, creationflags=creationflags)
+        proc = subprocess.Popen(cmd, cwd=str(cw), creationflags=creationflags)
         logger.info(f"[overlay] launched pid={proc.pid} cmd={cmd}")
         return proc
     except Exception as e:
@@ -97,9 +142,54 @@ def _spawn_tool(cfg, key: str):
         logger.info(f"[tool:{key}] disabled")
         return None
 
-    py = spec.get("command") or sys.executable
-    args = spec.get("args", []) or []
-    cwd = spec.get("cwd") or os.getcwd()
+    repo_root = Path(__file__).resolve().parents[1]
+    # Resolve working directory
+    cwd_raw = spec.get("cwd")
+    if cwd_raw:
+        cw = Path(cwd_raw)
+        if not cw.is_absolute():
+            cw = (repo_root / cw).resolve()
+    else:
+        cw = repo_root
+
+    # Resolve interpreter/command
+    cmd_raw = spec.get("command")
+    py = cmd_raw or (getattr(cfg, "get", lambda *_: None)("python")) or sys.executable
+    try:
+        if cmd_raw and not Path(cmd_raw).exists():
+            py = sys.executable
+    except Exception:
+        py = sys.executable
+
+    # Resolve script args
+    args = list(spec.get("args", []) or [])
+    if args:
+        try:
+            first = args[0]
+            if isinstance(first, str) and first.lower().endswith(".py"):
+                p = Path(first)
+                if not p.is_absolute():
+                    p = cw / p
+                elif not p.exists():
+                    # absolute but missing → try repo_root fallback
+                    p = (repo_root / first.lstrip("/\\")).resolve()
+                if not p.exists():
+                    # try cache mapping
+                    cache = _load_paths_cache()
+                    key_map = {
+                        "stt.start": "stt_script",
+                        "ocr.start": "ocr_script",
+                        "mictrans.start": "mictrans_script",
+                        "capture_assist.start": "capture_assist_script",
+                    }
+                    ck = key_map.get(key)
+                    if ck:
+                        csp = cache.get(ck)
+                        if csp and Path(csp).exists():
+                            p = Path(csp)
+                args[0] = str(p)
+        except Exception:
+            pass
 
     creationflags = 0
     if platform.system() == "Windows" and spec.get("no_console", False):
@@ -110,7 +200,7 @@ def _spawn_tool(cfg, key: str):
 
     cmd = [py, *args]
     try:
-        proc = subprocess.Popen(cmd, cwd=cwd, env=env, creationflags=creationflags)
+        proc = subprocess.Popen(cmd, cwd=str(cw), env=env, creationflags=creationflags)
         logger.info(f"[tool:{key}] launched pid={proc.pid} cmd={cmd}")
         return proc
     except Exception as e:
@@ -118,9 +208,250 @@ def _spawn_tool(cfg, key: str):
         return None
 
 def create_app(ctx, plugins=None):
+    def _venv_python() -> str | None:
+        root = Path(__file__).resolve().parents[1]
+        if platform.system() == "Windows":
+            p = root / ".venv" / "Scripts" / "python.exe"
+        else:
+            p = root / ".venv" / "bin" / "python"
+        return str(p) if p.exists() else None
+
+    def _normalize_config_python() -> None:
+        """Ensure a single python interpreter path is set and referenced.
+
+        - Sets top-level cfg['python'] to the venv python if available.
+        - Ensures overlay.python and tools.*.command reference this value
+          when missing or pointing to a stale/missing interpreter.
+        - Writes back to config.yaml if changes were made.
+        """
+        cfg = getattr(ctx, "config", {}) or {}
+        root = Path(__file__).resolve().parents[1]
+        cfg_path = root / "config.yaml"
+        changed = False
+
+        py_venv = _venv_python()
+        py_cfg = cfg.get("python")
+
+        # Set default python if not present and venv exists
+        if not py_cfg and py_venv:
+            cfg["python"] = py_venv
+            py_cfg = py_venv
+            changed = True
+
+        # Overlay python fallback
+        ov = cfg.get("overlay") or {}
+        if py_cfg and not ov.get("python"):
+            ov["python"] = py_cfg
+            cfg["overlay"] = ov
+            changed = True
+
+        # Helper to decide if a command looks stale/missing
+        def _needs_update(cmd: str | None) -> bool:
+            if not cmd:
+                return True
+            try:
+                return not Path(str(cmd)).exists()
+            except Exception:
+                return True
+
+        # Update core tools to use a single interpreter when appropriate
+        tools = cfg.get("tools") or {}
+        core_keys = [
+            "stt.start",
+            "ocr.start",
+            "mictrans.start",
+            "capture_assist.start",
+            "web.search",
+        ]
+        for k in core_keys:
+            spec = tools.get(k) or {}
+            if py_cfg and _needs_update(spec.get("command")):
+                spec["command"] = py_cfg
+                tools[k] = spec
+                changed = True
+        cfg["tools"] = tools
+
+        if changed:
+            try:
+                # Persist and reflect in context
+                cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                ctx.config = cfg
+                logger.info("[config] normalized python interpreter paths and updated config.yaml")
+            except Exception as e:
+                logger.warning(f"[config] failed to write normalized config: {e}")
+    def _discover_paths() -> dict:
+        """Discover key tool directories relative to the repository root and return a mapping.
+
+        The result is intended to be persisted on shutdown so future runs can reuse
+        the discovered locations regardless of the working directory.
+        """
+        root = Path(__file__).resolve().parents[1]
+        cand = {
+            "stt": ["STT"],
+            "ocr": ["OCR"],
+            "mictrans": ["Mic-trans-assist", "Mic_trans_assist", "mictrans", "MicTrans"],
+            "capture_assist": ["Capture-assist", "Capture_Assist", "capture_assist"],
+            "overlay": ["Overlay"],
+        }
+        out = {"root": str(root)}
+        for key, names in cand.items():
+            found = None
+            for name in names:
+                p = root / name
+                if p.exists() and p.is_dir():
+                    found = p
+                    break
+            if not found:
+                # fallback: shallow search (max depth 2)
+                try:
+                    for base, dirs, _ in os.walk(root):
+                        depth = Path(base).relative_to(root).parts
+                        if len(depth) > 1:
+                            continue
+                        for d in dirs:
+                            if d.lower().replace("-", "_") == names[0].lower().replace("-", "_"):
+                                found = Path(base) / d
+                                break
+                        if found:
+                            break
+                except Exception:
+                    pass
+            if found:
+                out[key] = str(found)
+                # attempt to detect primary script within the folder
+                try:
+                    scripts_map = {
+                        "stt": ["VSRG-Ts-to-kr.py", "main.py"],
+                        "ocr": ["main.py"],
+                        "mictrans": ["mictrans.py"],
+                        "capture_assist": ["capture_assist.py"],
+                        "overlay": ["overlay_app.py"],
+                    }
+                    for cand_name in scripts_map.get(key, []):
+                        sp = found / cand_name
+                        if sp.exists():
+                            out[f"{key}_script"] = str(sp)
+                            break
+                except Exception:
+                    pass
+        out["timestamp"] = time.time()
+        return out
+
+
+    # --- user path override + normalization helpers ---
+    def _load_user_paths() -> dict:
+        """Optional user-specified path map. Highest priority if present."""
+        try:
+            root = Path(__file__).resolve().parents[1]
+            candidates = []
+            # 1) explicit via env
+            envp = os.environ.get("HOME_AGENT_PATHS")
+            if envp:
+                candidates.append(Path(envp))
+            # 2) repo-local defaults
+            candidates.append(root / "paths.user.json")
+            candidates.append(root / "config" / "paths.json")
+            for cp in candidates:
+                try:
+                    if cp and cp.exists():
+                        data = json.loads(cp.read_text(encoding="utf-8"))
+                        data["_source"] = str(cp)
+                        return data
+                except Exception:
+                    # ignore bad JSON candidates
+                    pass
+        except Exception:
+            pass
+        return {}
+
+    def _normalize_paths(data: dict) -> dict:
+        """Make path-like values absolute based on 'root'; keep scalars as-is."""
+        if not data:
+            return {}
+        try:
+            base = data.get("root")
+            if base:
+                base = Path(base)
+                if not base.is_absolute():
+                    base = (Path(__file__).resolve().parents[1] / base).resolve()
+            else:
+                base = Path(__file__).resolve().parents[1]
+            out = {"root": str(base.resolve())}
+            for k, v in list(data.items()):
+                if k in ("root",) or k.startswith("_"):
+                    continue
+                try:
+                    pv = Path(v)
+                    if not pv.is_absolute():
+                        pv = base / pv
+                    out[k] = str(pv.resolve())
+                except Exception:
+                    out[k] = v
+            # carry source/metadata if any
+            for k, v in data.items():
+                if k.startswith("_"):
+                    out[k] = v
+            return out
+        except Exception:
+            return data
+
+    def _merge_left_biased(*layers: dict) -> dict:
+        """Merge dicts giving priority to left-most layer keys."""
+        merged = {}
+        for layer in layers[::-1]:  # right-most first, left-most last update wins
+            if layer:
+                merged.update(layer)
+        return merged
+    def _load_paths_cache() -> dict:
+        root = Path(__file__).resolve().parents[1]
+        user = _load_user_paths()
+        cache_file = root / "paths.cache.json"
+        cache = {}
+        if cache_file.exists():
+            try:
+                cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            except Exception:
+                cache = {}
+
+        # baseline discovery
+        disc = _discover_paths()
+
+        # Normalize and merge with priority: user > cache > discovery
+        merged = _merge_left_biased(
+            _normalize_paths(user),
+            _normalize_paths(cache),
+            _normalize_paths(disc),
+        )
+        return merged
+
+    
+
+    async def _restart_if_cache_missing():
+        """If paths.cache.json is missing, create it and restart the server process.
+        We now respect a user-provided paths file. If present, we skip restart.
+        """
+        try:
+            # If user file exists, skip restart entirely
+            if _load_user_paths():
+                logger.info("[paths] user paths present; skip restart")
+                return
+            root = Path(__file__).resolve().parents[1]
+            cache = root / "paths.cache.json"
+            if not cache.exists():
+                data = _discover_paths()
+                cache.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                logger.info(f"[paths] created path cache at {cache}; restarting agent")
+                await asyncio.sleep(0.2)
+                os.execv(sys.executable, [sys.executable, "-m", "agent.main"])
+        except Exception as e:
+            logger.debug(f"[paths] restart-if-missing error: {e}")
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Startup
+        # Ensure path cache exists before wiring anything else
+        await _restart_if_cache_missing()
+        # Ensure a single python interpreter setting is present and referenced
+        _normalize_config_python()
         app.state.overlay_proc = _spawn_overlay(getattr(ctx, "config", {}))
         app.state.stt_proc = None
         app.state.mictrans_proc = None
@@ -157,13 +488,129 @@ def create_app(ctx, plugins=None):
                     app.state._plugin_unsubs.append((prefix, _handler))
                     logger.info(f"[plugin] subscribed '{getattr(p,'name',p)}' to '{prefix}'")
 
+            # If the enhanced overlay sink plugin isn't present, install a minimal
+            # fallback forwarder so STT/OCR/MicTrans/Capture-Assist results appear
+            # on the Overlay. Keeps behavior when plugin is available.
+            has_overlay_sink = any(getattr(p, "name", "") == "enhanced_overlay_sink" for p in (plugins or []))
+            force_fallback = bool(os.environ.get("OVERLAY_FORCE_FALLBACK"))
+
+            # Runtime policy: block OCR while high‑VRAM STT (VSRG translator) is running.
+            # Env override: BLOCK_OCR_WHILE_STT=0 disables; any other/non-empty enables.
+            def _flag_true(v):
+                s = str(v).strip().lower()
+                return s not in ("0", "false", "no", "off", "")
+            cfg_orch = (getattr(ctx, "config", {}).get("orchestrator") or {})
+            cfg_block = cfg_orch.get("block_ocr_while_stt", True)
+            env_block = os.environ.get("BLOCK_OCR_WHILE_STT")
+            block_ocr_while_stt = _flag_true(env_block) if env_block is not None else bool(cfg_block)
+
+            async def _forward_to_overlay(event_type: str, payload: dict, priority: int = 5):
+                try:
+                    # Never re-forward already normalized result types to avoid self-triggering
+                    if event_type.endswith(".result"):
+                        return
+                    # Build normalized event for the Overlay app
+                    evt: dict
+                    if event_type.startswith("stt.") or event_type.startswith("mictrans."):
+                        text = (payload or {}).get("text", "")
+                        translation = (payload or {}).get("translation", "")
+                        confidence = (payload or {}).get("confidence", 0)
+                        display = (translation or text or "").strip()
+                        evt = {
+                            "type": "stt.result",
+                            "payload": {
+                                "text": display[:300],
+                                "original": text,
+                                "translation": translation,
+                                "confidence": confidence,
+                                "assist": bool((payload or {}).get("assist", False)),
+                            },
+                            "priority": priority,
+                            "timestamp": int(time.time() * 1000),
+                            "source": "agent",
+                        }
+                    elif event_type.startswith("ocr.") or event_type.startswith("capture_assist."):
+                        text = (payload or {}).get("text") or (payload or {}).get("ocr") or ""
+                        bbox = (payload or {}).get("bbox", [])
+                        confidence = (payload or {}).get("confidence", 0)
+                        evt_type = "capture_assist.result" if event_type.startswith("capture_assist.") else "ocr.result"
+                        evt = {
+                            "type": evt_type,
+                            "payload": {
+                                "text": (text or "")[:300],
+                                "bbox": bbox,
+                                "confidence": confidence,
+                                "assist": bool((payload or {}).get("assist", False)),
+                            },
+                            "priority": priority,
+                            "timestamp": int(time.time() * 1000),
+                            "source": "agent",
+                        }
+                    else:
+                        return
+
+                    # Post to Overlay /event (async via thread to avoid blocking)
+                    async def _post():
+                        try:
+                            import requests as _rq  # prefer widely-available requests
+                            _rq.post(OVERLAY_EVENT_URL, json=evt, timeout=3)
+                        except Exception as _e:
+                            logger.debug(f"[overlay-forward] post failed: {_e}")
+                    await _post()
+                except Exception as e:
+                    logger.debug(f"[overlay-forward] error: {e}")
+
+            if force_fallback or not has_overlay_sink:
+                async def _overlay_fallback_handler(ev):
+                    # Drop events that are already post-processed results to avoid echo loops
+                    if ev.type.endswith(".result") or getattr(ev, "source", "") == "overlay":
+                        return
+                    payload = getattr(ev, "payload", {}) or {}
+                    # Dedup by type+text-ish payload within a short TTL window
+                    text = (payload.get("translation") or payload.get("text") or payload.get("ocr") or "")
+                    key = f"ovf:{ev.type}:{text[:200]}"
+                    if _seen_recent(key, ttl=5.0):
+                        return
+                    await _forward_to_overlay(ev.type, payload, getattr(ev, "priority", 5))
+                # Always forward mictrans.* (lightweight path) as a safety net.
+                # Avoid duplicate capture_assist forwarding when sink is present.
+                prefixes = ["mictrans.", "stt.", "ocr."]
+                if not has_overlay_sink:
+                    prefixes.append("capture_assist.")
+                for _prefix in prefixes:
+                    ctx.bus.subscribe(_prefix, _overlay_fallback_handler)
+                    app.state._plugin_unsubs.append((_prefix, _overlay_fallback_handler))
+                logger.info(
+                    "[overlay-forward] Installed minimal overlay forwarder (%s)" % (
+                        "forced" if force_fallback else "plugin not found"
+                    )
+                )
+
+            # MicTrans feed bridge: Ensure mictrans.text shows up on overlay feed
+            # even if the sink is slow or missing. Duplicates are dropped by
+            # the overlay app's duplicate filter (5s window by text hash).
+            async def _mictrans_bridge(ev):
+                if ev.type != "mictrans.text":
+                    return
+                payload = getattr(ev, "payload", {}) or {}
+                key = f"micbridge:{payload.get('text','')[:200]}:{payload.get('translation','')[:200]}"
+                if _seen_recent(key, ttl=5.0):
+                    return
+                await _forward_to_overlay(ev.type, payload, getattr(ev, "priority", 5))
+
+            ctx.bus.subscribe("mictrans.text", _mictrans_bridge)
+            app.state._plugin_unsubs.append(("mictrans.text", _mictrans_bridge))
+
             async def _toast_handler(ev):
                 payload = ev.payload or {}
                 # avoid infinite loops if we re-publish the toast event
                 if payload.get("_relay"):
                     return
+                # Drop obvious duplicates within a short window
                 title = payload.get("title", "")
                 text = payload.get("text", "")
+                if _seen_recent(f"toast:{title}:{text}", ttl=5.0):
+                    return
                 logger.info(f"[toast] {title}: {text}")
                 # relay event on the bus so overlay sinks can forward the message
                 try:
@@ -176,6 +623,19 @@ def create_app(ctx, plugins=None):
                     )
                 except Exception as e:
                     logger.debug(f"[toast] relay failed: {e}")
+                # Fallback: when enhanced overlay sink is missing, post directly
+                if force_fallback or not has_overlay_sink:
+                    try:
+                        import requests as _rq
+                        _rq.post(OVERLAY_TOAST_URL, json={
+                            "type": "overlay.toast",
+                            "payload": {**payload, "_relay": True},
+                            "priority": getattr(ev, "priority", 5),
+                            "timestamp": int(time.time() * 1000),
+                            "source": "agent",
+                        }, timeout=3)
+                    except Exception as e:
+                        logger.debug(f"[toast] http fallback failed: {e}")
 
             ctx.bus.subscribe("overlay.toast", _toast_handler)
             app.state._plugin_unsubs.append(("overlay.toast", _toast_handler))
@@ -187,6 +647,27 @@ def create_app(ctx, plugins=None):
                     else:
                         app.state.stt_proc = _spawn_tool(getattr(ctx, "config", {}), "stt.start")
                         logger.info("[stt] started basic STT (VSRG-Ts-to-kr.py)")
+                        # If policy enabled, stop heavy OCR pipelines to save VRAM
+                        if block_ocr_while_stt:
+                            try:
+                                await _terminate_proc(getattr(app.state, "ocr_proc", None), name="ocr", timeout=3.0)
+                                app.state.ocr_proc = None
+                            except Exception:
+                                pass
+                            try:
+                                await _terminate_proc(getattr(app.state, "capture_proc", None), name="capture_assist", timeout=3.0)
+                                app.state.capture_proc = None
+                            except Exception:
+                                pass
+                            # Inform user via toast (relayed to overlay)
+                            try:
+                                await ctx.bus.publish(Event(
+                                    type="overlay.toast",
+                                    payload={"title": "VRAM 보호", "text": "STT 실행 중이라 OCR이 중지됩니다."},
+                                    priority=5,
+                                ))
+                            except Exception:
+                                pass
 
                 elif ev.type == "stt.stop":
                     await _terminate_proc(getattr(app.state, "stt_proc", None), name="stt", timeout=3.0)
@@ -212,7 +693,17 @@ def create_app(ctx, plugins=None):
             async def _ocr_handler(ev):
                 # Separate pipelines: 'ocr.*' (VLM OCR + translate) vs 'capture_assist.*' (EasyOCR only)
                 if ev.type == "ocr.start":
-                    if app.state.ocr_proc and app.state.ocr_proc.poll() is None:
+                    if block_ocr_while_stt and app.state.stt_proc and app.state.stt_proc.poll() is None:
+                        logger.info("[ocr] blocked: STT running (VRAM policy)")
+                        try:
+                            await ctx.bus.publish(Event(
+                                type="overlay.toast",
+                                payload={"title": "OCR 차단", "text": "STT 실행 중이라 OCR을 시작하지 않습니다."},
+                                priority=5,
+                            ))
+                        except Exception:
+                            pass
+                    elif app.state.ocr_proc and app.state.ocr_proc.poll() is None:
                         logger.info("[ocr] already running")
                     else:
                         app.state.ocr_proc = _spawn_tool(getattr(ctx, "config", {}), "ocr.start")
@@ -224,7 +715,17 @@ def create_app(ctx, plugins=None):
                     app.state.capture_proc = None
                     logger.info("[ocr] stopped")
                 elif ev.type == "capture_assist.start":
-                    if app.state.capture_proc and app.state.capture_proc.poll() is None:
+                    if block_ocr_while_stt and app.state.stt_proc and app.state.stt_proc.poll() is None:
+                        logger.info("[capture_assist] blocked: STT running (VRAM policy)")
+                        try:
+                            await ctx.bus.publish(Event(
+                                type="overlay.toast",
+                                payload={"title": "캡처 차단", "text": "STT 실행 중이라 캡처를 시작하지 않습니다."},
+                                priority=5,
+                            ))
+                        except Exception:
+                            pass
+                    elif app.state.capture_proc and app.state.capture_proc.poll() is None:
                         logger.info("[capture_assist] already running")
                     else:
                         app.state.capture_proc = _spawn_tool(getattr(ctx, "config", {}), "capture_assist.start")
@@ -328,11 +829,25 @@ def create_app(ctx, plugins=None):
                     await ctx.bus.publish(Event(type="mictrans.stop", payload={}, priority=3, source="router", timestamp=_t.time()))
                 # 필요하면 여기서 summarize/translate 등도 매핑
 
-            ctx.bus.subscribe("cmd.", _cmd_handler)
-            ctx.bus.subscribe("cmd.detected", _cmd_handler)  # generic도 받기
-            logger.info("[router] subscribed to 'cmd.*' and 'cmd.detected'")
-            app.state._plugin_unsubs.append(("cmd.", _cmd_handler))
-            app.state._plugin_unsubs.append(("cmd.detected", _cmd_handler))
+            # 명령 라우팅 활성화 여부
+            cmd_cfg = (getattr(ctx, "config", {}).get("commands") or {})
+            enable_detected = cmd_cfg.get("enable_detected")
+            enable_detected = True if enable_detected is None else bool(enable_detected)
+            router_handle_detected = bool(cmd_cfg.get("router_handle_detected", False))
+            if enable_detected:
+                # Always handle explicit cmd.* topics (e.g., cmd.capture)
+                ctx.bus.subscribe("cmd.", _cmd_handler)
+                app.state._plugin_unsubs.append(("cmd.", _cmd_handler))
+                # Optionally also handle cmd.detected (default off to avoid
+                # duplication with AssistCommandPlugin)
+                if router_handle_detected:
+                    ctx.bus.subscribe("cmd.detected", _cmd_handler)
+                    app.state._plugin_unsubs.append(("cmd.detected", _cmd_handler))
+                    logger.info("[router] subscribed to 'cmd.*' and 'cmd.detected'")
+                else:
+                    logger.info("[router] subscribed to 'cmd.*' (plugin handles cmd.detected)")
+            else:
+                logger.info("[router] command routing disabled by config")
 
             # Tool gateway handler for LLM responses
             async def _llm_handler(ev):
@@ -519,6 +1034,22 @@ def create_app(ctx, plugins=None):
         await _terminate_proc(getattr(app.state, "overlay_proc", None), name="overlay", timeout=3.0)
         app.state.overlay_proc = None
         return {"ok": True, "status": "stopped"}
+
+    # Persist discovered tool paths on shutdown
+    async def _persist_discovered_paths():
+        try:
+            data = _discover_paths()
+            root = Path(data.get("root", Path(__file__).resolve().parents[1]))
+            path = root / "paths.cache.json"
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info(f"[paths] persisted discovered paths to {path}")
+        except Exception as e:
+            logger.debug(f"[paths] persist error: {e}")
+
+    # Register atexit-like callback via FastAPI shutdown event
+    @app.on_event("shutdown")
+    async def _on_shutdown():
+        await _persist_discovered_paths()
 
     @app.get("/overlay/status")
     async def overlay_status():
