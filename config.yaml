@@ -54,7 +54,7 @@ tools: &id001
     no_console: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
-    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+    command: .venv/Scripts/python.exe
   ocr.stop:
     kind: process_stop
     id: ocr
@@ -69,7 +69,7 @@ tools: &id001
     shell: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
-    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+    command: .venv/Scripts/python.exe
   stt.stop:
     kind: process_stop
     id: stt
@@ -86,7 +86,7 @@ tools: &id001
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
       ASSIST_ENABLE_DETECTED: '1'
-    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+    command: .venv/Scripts/python.exe
   mictrans.stop:
     kind: process_stop
     id: mictrans
@@ -100,7 +100,7 @@ tools: &id001
     no_console: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
-    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+    command: .venv/Scripts/python.exe
   capture_assist.stop:
     kind: process_stop
     id: capture_assist
@@ -126,7 +126,7 @@ tools: &id001
       WEB_SEARCH_MAX_CHARS: '12000'
       WEB_SEARCH_MAX_SENTENCES: '10'
       WEB_SEARCH_MAX_FETCH: '6'
-    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+    command: .venv/Scripts/python.exe
 overlay:
   highlight_color: '#FFD700'
   dim: 0.18
@@ -190,7 +190,7 @@ overlay:
     health_fail_quit_count: 6
   debug:
     overlay_echo_raw: true
-    log_events: true
+    log_events: false
     connection_test: true
   tools: *id001
   llm:
@@ -212,7 +212,7 @@ overlay:
       enabled: true
     KnowledgePlugin:
       enabled: true
-  python: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+  python: .venv/Scripts/python.exe
 ocr:
   server_url: http://localhost:1234/v1
   api_key: lm-studio
@@ -420,4 +420,4 @@ profiles:
       topk_for_llm: 12
     ocr:
       topk: 12
-python: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
+python: .venv/Scripts/python.exe
