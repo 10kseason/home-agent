@@ -13,6 +13,8 @@ _EVENT_URL = (
 _EVENT_KEY = os.environ.get("EVENT_KEY") or os.environ.get("AGENT_EVENT_KEY")
 
 _LAST_CMD_MS = -1e9
+# Per-command last emit timestamp (ms) to avoid duplicates
+_CMD_LAST_TS = {}
 
 def detect_command(text: str, cfg) -> Optional[str]:
     """Return canonical command name if detected respecting cooldown."""
@@ -49,6 +51,23 @@ def process_text(text: str, cfg, event_func: Callable[[str, dict, int], None] | 
     """
     cmd = detect_command(text, cfg)
     if cmd:
+        # Allow disabling command emission via env (ASSIST_ENABLE_DETECTED=0)
+        enabled_env = os.environ.get("ASSIST_ENABLE_DETECTED")
+        enabled = True if enabled_env is None else str(enabled_env).strip() not in ("0", "false", "no", "off", "")
+        if not enabled:
+            return cmd
+
+        # De-duplicate same command within a TTL window
+        now_ms = time.time() * 1000.0
+        try:
+            dup_ttl_ms = int((getattr(cfg, 'detection', None) or {}).get('duplicate_ttl_ms', 2000))
+        except Exception:
+            dup_ttl_ms = 2000
+        last = _CMD_LAST_TS.get(cmd, -1e12)
+        if now_ms - last < dup_ttl_ms:
+            return cmd  # suppress duplicate emit
+        _CMD_LAST_TS[cmd] = now_ms
+
         _post_event = event_func or _default_post
         _post_event("cmd.detected", {"cmd": cmd, "ts": time.time()}, 1)
     return cmd
@@ -65,3 +84,7 @@ def _default_post(_type: str, payload: dict, _prio: int = 5) -> None:
 def _reset_state() -> None:
     global _LAST_CMD_MS
     _LAST_CMD_MS = -1e9
+    try:
+        _CMD_LAST_TS.clear()
+    except Exception:
+        pass

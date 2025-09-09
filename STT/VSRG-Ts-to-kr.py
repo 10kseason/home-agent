@@ -821,6 +821,7 @@ class OverlayUI:
         self.root = None
         self.chat_box = None
         self.queue = queue.Queue()
+        self.on_close_cb = None
 
         if self.enabled:
             self.root = tk.Tk()
@@ -844,7 +845,29 @@ class OverlayUI:
             tk.Button(btn_frame, text="Clear", command=self.clear, bg="#2C333A", fg=cfg.ui.theme_fg).pack(side="left")
             tk.Button(btn_frame, text="Quit", command=self.root.destroy, bg="#5A1F1F", fg="#FFFFFF").pack(side="right")
 
+            # Ensure graceful shutdown on window close
+            try:
+                self.root.protocol("WM_DELETE_WINDOW", self._on_close_internal)
+            except Exception:
+                pass
             self.root.after(50, self._poll_queue)
+
+    def set_on_close(self, cb):
+        self.on_close_cb = cb
+
+    def _on_close_internal(self):
+        try:
+            if callable(self.on_close_cb):
+                try:
+                    self.on_close_cb()
+                except Exception:
+                    pass
+        finally:
+            try:
+                if self.root:
+                    self.root.destroy()
+            except Exception:
+                pass
 
     def _poll_queue(self):
         try:
@@ -962,11 +985,31 @@ def run_pipeline(cfg: Config):
     if cfg.debug.write_wav_segments:
         ensure_dir(seg_dir)
 
+    import threading as _th
+    stop_event = _th.Event()
+
+    def _request_stop(reason: str = "user"):
+        try:
+            _post_event("stt.stop", {"reason": reason})
+        except Exception:
+            pass
+        try:
+            audio.stop()
+        except Exception:
+            pass
+        stop_event.set()
+
+    # hook UI close → graceful stop
+    try:
+        ui.set_on_close(lambda: _request_stop("ui_close"))
+    except Exception:
+        pass
+
     def worker():
         nonlocal force_ms, last_preview_ts
         print("[INFO] Running. System output will be captured (mic excluded). Ctrl+C to stop.")
         try:
-            while True:
+            while not stop_event.is_set():
                 frame = audio.read(timeout=1.0)
                 if frame is None:
                     continue
@@ -1118,12 +1161,19 @@ def run_pipeline(cfg: Config):
                             _overlay_toast(korean or english)
         except KeyboardInterrupt:
             print("[INFO] Interrupted.")
+            _request_stop("keyboard")
         finally:
             audio.stop()
 
     t = threading.Thread(target=worker, daemon=True)
     t.start()
     ui.loop()
+    # UI loop returned → request stop and give worker a moment to exit
+    _request_stop("ui_exit")
+    try:
+        t.join(timeout=1.0)
+    except Exception:
+        pass
 
 
 def main():
