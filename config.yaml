@@ -32,6 +32,7 @@ translate:
   endpoint: http://127.0.0.1:1234/v1
   model: qwen/qwen3-4b-2507
   api_key: ''
+  emit_text_event: false
   max_refine_chars: 6500
   severity_threshold: 2
 sinks:
@@ -40,17 +41,20 @@ sinks:
 limits:
   dedup_window_seconds: 3600
   max_queue_size: 1000
+commands:
+  enable_detected: true
+  router_handle_detected: true
 tools: &id001
   ocr.start:
     kind: process
     id: ocr
-    command: D:/jip/home-agent/.venv/Scripts/python.exe
     args:
-    - D:/jip/home-agent/OCR/main.py
-    cwd: D:/jip/home-agent/OCR
+    - OCR/main.py
+    cwd: OCR
     no_console: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
+    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
   ocr.stop:
     kind: process_stop
     id: ocr
@@ -58,14 +62,14 @@ tools: &id001
   stt.start:
     kind: process
     id: stt
-    command: D:/jip/home-agent/.venv/Scripts/python.exe
     args:
-    - D:/jip/home-agent/STT/VSRG-Ts-to-kr.py
-    cwd: D:/jip/home-agent/STT
+    - STT/VSRG-Ts-to-kr.py
+    cwd: STT
     no_console: true
     shell: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
+    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
   stt.stop:
     kind: process_stop
     id: stt
@@ -73,15 +77,16 @@ tools: &id001
   mictrans.start:
     kind: process
     id: mictrans
-    command: D:/jip/home-agent/.venv/Scripts/python.exe
     args:
     - mictrans.py
     - --config
     - Assist-config.yaml
-    cwd: D:/jip/home-agent/Mic-trans-assist
+    cwd: Mic-trans-assist
     no_console: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
+      ASSIST_ENABLE_DETECTED: '1'
+    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
   mictrans.stop:
     kind: process_stop
     id: mictrans
@@ -89,13 +94,13 @@ tools: &id001
   capture_assist.start:
     kind: process
     id: capture_assist
-    command: D:/jip/home-agent/.venv/Scripts/python.exe
     args:
     - capture_assist.py
-    cwd: D:/jip/home-agent/Capture-assist
+    cwd: Capture-assist
     no_console: true
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8765/event
+    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
   capture_assist.stop:
     kind: process_stop
     id: capture_assist
@@ -103,16 +108,15 @@ tools: &id001
   web.search:
     kind: process
     id: web
-    command: D:/jip/home-agent/.venv/Scripts/python.exe
     args:
-    - D:/jip/home-agent/Overlay/plugins/web_search.py
+    - Overlay/plugins/web_search.py
     - --query
     - '{q}'
     - --topk
     - '{k}'
     - --summarize
     - --post
-    cwd: D:/jip/home-agent/Overlay/plugins
+    cwd: Overlay/plugins
     no_console: false
     env:
       AGENT_EVENT_URL: http://127.0.0.1:8350/event
@@ -122,13 +126,13 @@ tools: &id001
       WEB_SEARCH_MAX_CHARS: '12000'
       WEB_SEARCH_MAX_SENTENCES: '10'
       WEB_SEARCH_MAX_FETCH: '6'
+    command: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
 overlay:
   highlight_color: '#FFD700'
   dim: 0.18
   enable: true
-  python: D:/jip/home-agent/.venv/Scripts/python.exe
-  script: D:/jip/home-agent/Overlay/overlay_app.py
-  cwd: D:/jip/home-agent/Overlay
+  script: Overlay/overlay_app.py
+  cwd: Overlay
   args: []
   llm_tools:
     endpoint: http://127.0.0.1:1234/v1
@@ -208,12 +212,13 @@ overlay:
       enabled: true
     KnowledgePlugin:
       enabled: true
+  python: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
 ocr:
   server_url: http://localhost:1234/v1
   api_key: lm-studio
   ocr_model: qwen/qwen2.5-vl-7b
   translate_model: qwen/qwen3-8b
-  fast_vlm_mode: false
+  fast_vlm_mode: true
   target_language: Korean
   hotkey: ctrl+alt+o
   copy_to_clipboard: true
@@ -415,3 +420,4 @@ profiles:
       topk_for_llm: 12
     ocr:
       topk: 12
+python: C:\tsuto\상대 경로 테스트 (2)\.venv\Scripts\python.exe
