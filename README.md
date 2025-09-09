@@ -1,3 +1,5 @@
+<p align="right"><b>한국어(ko)</b> | <a href="README.en.md">English (en)</a></p>
+
 # Overlay LLM Orchestrator (Experimental)
 
 > ⚠️ **본 프로젝트는 GPT, Claude, 기타 앱들을 활용해 만든 결과물입니다.**  
@@ -15,6 +17,12 @@
 압축을 풀고 `처음 사용자용 실행 및 설치.bat`를 실행합니다. LM Studio가 설치되어 있어야 하며
 **모든 설정은 배치 파일과 동일한 위치의 `config.yaml`에서 관리됩니다. OCR, STT, Overlay 섹션에 자신에게 맞는 모델과 경로를 입력하세요. 하드웨어 사양에 따라 모델 종류나 옵션을 바꿔 써도 무방합니다.**
 **All settings are handled in the `config.yaml` next to the batch files. Provide model paths for the OCR, STT, and Overlay sections and adjust options for your hardware. See `docs/CONFIGURATION.md` for details.**
+
+### 빠른 시작(간편 배치)
+- 환경 설치: `Python-env-installer.bat` (가상환경 생성 + 의존 설치)
+- 서버 실행: `run-server.bat`
+
+설정은 모두 상대경로 기반으로 동작하며, 서버는 실행 시 폴더/스크립트를 자동 탐색하여 루트의 `paths.cache.json`에 저장합니다. 최초 실행에 캐시가 없으면 생성 후 자동 재시작합니다. 필요 시 `paths.user.json`(또는 `HOME_AGENT_PATHS`)로 사용자 경로를 우선 적용할 수 있습니다.
 
 📦 필요 모델 목록
 Qwen2.5-VL-7B (고속 OCR+한국어 번역)
@@ -70,12 +78,17 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 - `Qwen3-2507-4B` : 전사 결과물 한국어 번역
 - 결과는 Overlay 및 `VSRG-Ts-to-KR.py (STT)` 창에 표시, **화자 분리 지원**
 
+추가: MicTrans(경량 마이크 STT)는 CPU 친화 설정으로 **Assist‑MicTrans** 라벨로 바로 오버레이에 표시됩니다. MicTrans 텍스트에서 “캡쳐/캡처/capture/스크린샷…”을 감지하면 **캡처 어시스트**가 실행되며, 서버 라우터가 `cmd.detected`를 처리합니다(중복 억제 2초 TTL).
+
 ### 오케스트레이션 순환
 - Overlay에 대화 전송 → LMS 설정에 따라 8B 종료 → 4B가 다시 툴 호출  
 - 필요 시 OCR / STT 자동 불러오기 후 작업 완료 시 종료  
 
 ### 추가 기능
 - 웹 검색 기능 포함 (현재 일부 버그 존재)
+- Capture Assist(EasyOCR) — 즉시 촬영 후 OCR/표시(5초 지연 제거).
+- OCR(VL) — 설정된 비전 모델로 OCR → 번역.
+- MicTrans(음성 입력) — 오버레이에 실시간 전사 표시 및 어시스트 커맨드 감지.
 - `/Pin14b`, `/Pin20b` 명령어로 **Qwen3 14B**, **GPT-OSS-20B** 모델 호출 가능
 - 대부분의 툴 콜링은 4B 수준에서 처리됨
 - Overlay 종료 시 에이전트 서버도 함께 종료
@@ -83,6 +96,31 @@ Whisper Faster는 STT 실행시 설치됩니다. 받는데 시간이 걸릴 수 
 - 4B 모델이 번역 필요 여부를 판단하여 불필요한 번역을 방지
 - 저사양(VRAM 12GB 이하 또는 RAM 24GB 이하)에서는 OCR이 자동으로 고속 모드로 실행되며 해제할 수 없음
 - 한국어 환경에서만 테스트 완료
+
+## ✅ 현재 동작
+- STT(시스템/모니터 오디오): VSRG 번역기 스크립트(OBS 모니터링/loopback 필요할 수 있음)
+- OCR(VL 모델): 비전 OCR 파이프라인
+- Capture Assist(EasyOCR): 즉시 캡처 후 OCR → 표시
+- MicTrans(음성 입력): Assist‑MicTrans로 전사 표시, 명령 감지
+- 웹 검색: 동작하나 버그 다수(실험적)
+
+## 💾 VRAM 12GB 이하 설계
+- **STT(영한 번역기) 실행 중에는** VRAM 보호를 위해 OCR(VL)/Capture Assist 실행을 차단(토스트 안내). MicTrans는 허용.
+- 일시 해제: 서버 실행 전 `BLOCK_OCR_WHILE_STT=0` 설정.
+
+## 🧩 경로/캐시
+- 모든 경로는 상대경로 기반. 서버는 폴더/스크립트를 자동 탐색하여 `paths.cache.json`에 저장.
+- 캐시가 없으면 생성 후 자동 재시작.
+- 사용자 오버라이드: `paths.user.json` 또는 `HOME_AGENT_PATHS`로 사용자 경로를 최우선 적용.
+
+## ✨ 업데이트 요약
+- 상대경로/Pathlib 해석으로 **설치 간소화** 및 휴대성 향상.
+- **경로 캐시**(paths.cache.json) 도입: 최초 실행 시 생성·기억, 종료 시 갱신.
+- MicTrans → Overlay **브리지** 추가로 전사 표시 안정화.
+- **명령 라우터(cmd.detected)** 활성 + 2초 중복 억제.
+- Capture Assist **즉시 촬영**, 오버레이 **중복 토스트 필터** 적용.
+- **Translator text 피드 OFF**(기본): `translate.emit_text_event=false`.
+- 배치(ASCII): `Python-env-installer.bat`, `run-server.bat`.
 
 ---
 
