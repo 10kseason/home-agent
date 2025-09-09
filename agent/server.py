@@ -60,10 +60,19 @@ def _prune_capture_log(path: Path = CAPTURE_LOG_PATH, older_than: float = 60.0) 
         pass
 
 
-async def _capture_log_worker():
-    while True:
-        await asyncio.sleep(60)
-        _prune_capture_log()
+async def _capture_log_worker(stop_event: asyncio.Event | None = None):
+    """Periodically prune capture logs until cancelled.
+
+    A stop event can be supplied so the loop can exit gracefully without
+    relying on an endless ``while True`` construct.
+    """
+    try:
+        while not (stop_event and stop_event.is_set()):
+            await asyncio.sleep(60)
+            _prune_capture_log()
+    except asyncio.CancelledError:
+        # Task cancelled during shutdown
+        pass
 
 def _spawn_overlay(cfg):
     """Launch the Overlay using pathlib-based resolution.
@@ -459,7 +468,10 @@ def create_app(ctx, plugins=None):
         app.state.capture_proc = None
         app.state.assist_mode = bool(getattr(ctx, "assist_mode", False))
         app.state.assist_task = None
-        app.state.capture_log_task = asyncio.create_task(_capture_log_worker())
+        app.state.capture_log_stop = asyncio.Event()
+        app.state.capture_log_task = asyncio.create_task(
+            _capture_log_worker(app.state.capture_log_stop)
+        )
         # Watch overlay process so the agent exits when overlay closes
         if app.state.overlay_proc:
             async def _overlay_watch():
@@ -938,6 +950,9 @@ def create_app(ctx, plugins=None):
 
             # Stop capture log cleaner
             try:
+                stop = getattr(app.state, "capture_log_stop", None)
+                if stop:
+                    stop.set()
                 task = getattr(app.state, "capture_log_task", None)
                 if task:
                     task.cancel()
@@ -948,6 +963,7 @@ def create_app(ctx, plugins=None):
             except Exception as e:
                 logger.debug(f"[lifespan] capture log task cancel error: {e}")
             app.state.capture_log_task = None
+            app.state.capture_log_stop = None
 
             _clear_capture_log()
 
