@@ -88,6 +88,13 @@ def _spawn_overlay(cfg):
     repo_root = Path(__file__).resolve().parents[1]
     # Prefer overlay.python, fallback to top-level cfg['python'], then sys.executable
     py = ov.get("python") or (cfg.get("python") if isinstance(cfg, dict) else None) or sys.executable
+    # Convert relative python path to absolute
+    if py and py != sys.executable:
+        py_path = Path(py)
+        if not py_path.is_absolute():
+            py_path = repo_root / py_path
+            if py_path.exists():
+                py = str(py_path)
     script = ov.get("script")
     if script:
         sp = Path(script)
