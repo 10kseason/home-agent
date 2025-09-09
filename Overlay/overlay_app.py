@@ -3,6 +3,26 @@
 """
 Luna Overlay v9 – 견고한 이벤트 수신 및 처리 버전
 """
+import os
+import sys
+
+# QT 플랫폼 설정 (GUI 환경 문제 해결)
+# QT 플러그인 경로 명시적 설정
+try:
+    import PyQt5
+    qt_plugin_path = os.path.join(os.path.dirname(PyQt5.__file__), 'Qt5', 'plugins')
+    os.environ.setdefault('QT_QPA_PLATFORM_PLUGIN_PATH', qt_plugin_path)
+except ImportError:
+    pass
+
+# CLI 환경에서 DISPLAY가 없을 경우 적절한 플랫폼 설정
+if not os.environ.get('DISPLAY') and sys.platform.startswith('linux'):
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+elif os.name == 'nt':  # Windows
+    os.environ.setdefault('QT_QPA_PLATFORM', 'windows')
+else:
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
 import yaml
 import httpx
 import uvicorn
@@ -10,7 +30,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi import FastAPI, Request
 from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
-import os
 import json
 import threading
 import time
@@ -2598,24 +2617,42 @@ class Tray(QtWidgets.QSystemTrayIcon):
 
 
 def main():
-    # DPI/픽셀 스케일링 개선
-    QtWidgets.QApplication.setAttribute(
-        QtCore.Qt.AA_EnableHighDpiScaling, True)
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+    try:
+        # DPI/픽셀 스케일링 개선
+        QtWidgets.QApplication.setAttribute(
+            QtCore.Qt.AA_EnableHighDpiScaling, True)
+        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
-    cfg = load_cfg()
-    app = QtWidgets.QApplication(sys.argv)
-    dummy = QtWidgets.QWidget()
-    tray = Tray(app, dummy)
-    win = OverlayWindow(cfg, tray)
-    tray.window = win
+        # QApplication 초기화 시 에러 처리
+        try:
+            cfg = load_cfg()
+            app = QtWidgets.QApplication(sys.argv)
+            logger.info(f"QApplication initialized successfully on platform: {app.platformName()}")
+        except Exception as e:
+            logger.error(f"Failed to initialize QApplication: {e}")
+            # CLI 환경에서는 headless 모드로 실행 시도
+            print(f"GUI initialization failed: {e}")
+            print("This might be normal in CLI/headless environments")
+            return
 
-    if (cfg.get("ui") or {}).get("show_on_start", True):
-        win.show()
-        win.raise_()
-        win.activateWindow()
+        dummy = QtWidgets.QWidget()
+        tray = Tray(app, dummy)
+        win = OverlayWindow(cfg, tray)
+        tray.window = win
 
-    sys.exit(app.exec_())
+        if (cfg.get("ui") or {}).get("show_on_start", True):
+            win.show()
+            win.raise_()
+            win.activateWindow()
+
+        sys.exit(app.exec_())
+        
+    except Exception as e:
+        logger.error(f"Overlay main() failed: {e}")
+        print(f"Overlay startup failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
