@@ -199,6 +199,21 @@ class EventHandler:
             if self.debug_mode:
                 logger.info(f"[event] Processing {event_type}: {payload}")
 
+            # Filter duplicate Assist-Capture toasts (already represented in feed)
+            if event_type == "overlay.toast":
+                try:
+                    tnorm = (payload.get("title") or "").strip()
+                    if tnorm in ("Assist-Capture", "Capture-assist"):
+                        return True  # ignore silently
+                except Exception:
+                    pass
+
+            # Handle normalized result events from the agent sink
+            if event_type == "stt.result":
+                return self._handle_stt(payload)
+            if event_type in ("ocr.result", "capture_assist.result"):
+                return self._handle_ocr(event_type, payload)
+
             # STT와 OCR 계열 이벤트는 오버레이가 직접 처리하지 않음
             if (
                 event_type.startswith("stt.")
@@ -311,6 +326,30 @@ class EventHandler:
         if model_name:
             display_text += f" ({model_name})"
 
+        # Overlay-side capture command fallback (MicTrans only)
+        try:
+            if payload.get("assist"):
+                low = text.lower()
+                if any(k in low for k in ["캡쳐", "캡처", "capture", "스크린샷", "screenshot", "화면 캡쳐", "화면 캡처"]):
+                    import time as _t
+                    now = _t.time()
+                    last = float(getattr(self, "_overlay_last_capture", 0) or 0)
+                    if now - last >= 2.0:
+                        setattr(self, "_overlay_last_capture", now)
+                        try:
+                            url = (self.window.cfg.get("agent") or {}).get("event_url")
+                            self.window.orch._emit_event(
+                                "capture_assist.start",
+                                {"reason": "overlay_voice", "ts": now},
+                                priority=2,
+                                source="overlay",
+                                url=url,
+                            )
+                        except Exception as e:
+                            logger.error(f"[overlay-cmd] emit capture failed: {e}")
+        except Exception as e:
+            logger.debug(f"[overlay-cmd] detection error: {e}")
+
         label = "Assist-MicTrans" if payload.get("assist") else "🎤 STT"
         self._emit_safe(label, display_text)
         return True
@@ -348,8 +387,7 @@ class EventHandler:
         else:
             mode = "ocr"
             # 일반 OCR 동작 중일 때 Mictrans나 STT가 활성이면 차단
-            if "mictrans" in self.active_modes or "stt" in self.active_modes:
-                return False
+            # 억제 정책 제거: STT/MicTrans 활성 중에도 OCR 표시 허용
             self.active_modes.add(mode)
             self._update_mode_activity(mode)
             
@@ -1696,9 +1734,22 @@ class OverlayWindow(QtWidgets.QWidget):
         self.btn_image.setFixedWidth(40)
         self.btn_image.clicked.connect(self.on_image)
 
+        # Add a small Quit button in the title row
+        self.btn_quit = QtWidgets.QPushButton("✖", self.container)
+        self.btn_quit.setFixedWidth(28)
+        try:
+            self.btn_quit.setToolTip("Quit Overlay")
+        except Exception:
+            pass
+        self.btn_quit.setStyleSheet("QPushButton{color:#E57373; background: rgba(255,255,255,20); border:none; border-radius:6px;} QPushButton:hover{background: rgba(255,255,255,36);} ")
+        self.btn_quit.clicked.connect(self.close)
+
         layout = QtWidgets.QVBoxLayout(self.container)
         layout.setContentsMargins(14, 14, 14, 14)
-        layout.addWidget(self.title, 0)
+        title_row = QtWidgets.QHBoxLayout()
+        title_row.addWidget(self.title, 1)
+        title_row.addWidget(self.btn_quit, 0)
+        layout.addLayout(title_row, 0)
         layout.addWidget(self.output, 1)
         input_row = QtWidgets.QHBoxLayout()
         input_row.addWidget(self.input, 1)

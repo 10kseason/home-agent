@@ -16,9 +16,8 @@ tools:
   ocr.start:
     kind: "process"
     id: "ocr"
-    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-    args: ["D:/jip/home-agent/OCR/main.py"]
-    cwd: "D:/jip/home-agent/OCR"
+    args: ["OCR/main.py"]
+    cwd: "OCR"
     no_console: true
   ocr.stop:
     kind: "process_stop"
@@ -29,9 +28,8 @@ tools:
   stt.start:
     kind: "process"
     id: "stt"
-    command: "D:/jip/home-agent/.venv/Scripts/python.exe"
-    args: ["D:/jip/home-agent/STT/main.py"]
-    cwd: "D:/jip/home-agent/STT"
+    args: ["STT/main.py"]
+    cwd: "STT"
     no_console: true
     stt.stop:
       kind: "process_stop"
